@@ -19,7 +19,7 @@ export function useStressStream(): UseStressStreamReturn {
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout>();
+  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
 
   const connect = useCallback(() => {
     const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
@@ -42,9 +42,17 @@ export function useStressStream(): UseStressStreamReturn {
               probabilities: msg.probabilities,
               insights: msg.insights || [],
               timestamp: msg.timestamp || Date.now(),
+              typing_speed_wpm: msg.typing_speed_wpm ?? 0,
+              rage_click_count: msg.rage_click_count ?? 0,
+              error_rate: msg.error_rate ?? 0,
+              click_count: msg.click_count ?? 0,
+              mouse_speed_mean: msg.mouse_speed_mean ?? 0,
             };
             setData(result);
             setHistory((prev) => [...prev.slice(-120), result]);
+          } else if (msg.type === "session_reset") {
+            setData(null);
+            setHistory([]);
           }
         } catch {}
       };
@@ -58,7 +66,9 @@ export function useStressStream(): UseStressStreamReturn {
   useEffect(() => {
     connect();
     return () => {
-      clearTimeout(reconnectTimer.current);
+      if (reconnectTimer.current) {
+        clearTimeout(reconnectTimer.current);
+      }
       wsRef.current?.close();
     };
   }, [connect]);

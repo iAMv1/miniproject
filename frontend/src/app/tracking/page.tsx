@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useStressStream } from "@/hooks/use-stress-stream";
 import { api } from "@/lib/api";
 import type { UserStats } from "@/lib/types";
@@ -111,14 +111,55 @@ function Recommendation({ score }: { score: number }) {
 export default function TrackingPage() {
   const { data, status, send } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
+  const prevLevelRef = useRef<string>("UNKNOWN");
+  const notifPermissionRef = useRef<boolean>(false);
 
+  // Request notification permission on mount
   useEffect(() => {
-    api.stats().then(setStats).catch(() => {});
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        notifPermissionRef.current = true;
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((perm) => {
+          notifPermissionRef.current = perm === "granted";
+        });
+      }
+    }
   }, []);
+
+  // Refresh stats every 10 seconds
+  useEffect(() => {
+    const fetchStats = () => api.stats("demo_user").then(setStats).catch(() => {});
+    fetchStats();
+    const interval = setInterval(fetchStats, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fire browser notification when stress is detected
+  useEffect(() => {
+    if (!data) return;
+    const currentLevel = data.level;
+    if (currentLevel === "STRESSED" && prevLevelRef.current !== "STRESSED") {
+      if (notifPermissionRef.current) {
+        new Notification("⚠️ MindPulse — Stress Alert", {
+          body: "Elevated stress detected! Take a moment to breathe deeply.",
+          icon: "/favicon.ico",
+          tag: "mindpulse-stress",
+        });
+      }
+    }
+    prevLevelRef.current = currentLevel;
+  }, [data]);
 
   const score = data?.score ?? 0;
   const level = data?.level ?? "UNKNOWN";
   const insights = data?.insights ?? [];
+
+  // Live raw features from WebSocket
+  const liveWpm = data?.typing_speed_wpm ?? 0;
+  const liveRageClicks = data?.rage_click_count ?? 0;
+  const liveErrorRate = data?.error_rate ?? 0;
+  const liveClicks = data?.click_count ?? 0;
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -127,9 +168,20 @@ export default function TrackingPage() {
           <h1 className="text-2xl font-bold">Live Tracking</h1>
           <p className="text-sm text-muted mt-1">Real-time stress detection from typing & mouse behavior</p>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span className={`w-2 h-2 rounded-full ${status === "connected" ? "bg-neutral animate-pulse" : "bg-stressed"}`} />
-          <span className="text-muted">{status}</span>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={async () => {
+              await api.reset("demo_user");
+              setStats(null);
+            }}
+            className="px-4 py-1.5 rounded-lg border border-stressed/40 text-stressed text-xs font-medium hover:bg-stressed/10 transition"
+          >
+            ↻ Start Over
+          </button>
+          <div className="flex items-center gap-2 text-xs">
+            <span className={`w-2 h-2 rounded-full ${status === "connected" ? "bg-neutral animate-pulse" : "bg-stressed"}`} />
+            <span className="text-muted">{status}</span>
+          </div>
         </div>
       </div>
 
@@ -143,12 +195,12 @@ export default function TrackingPage() {
         </div>
 
         <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Metric label="Typing Speed" value={stats?.avg_score?.toFixed(0) ?? "--"} unit="avg score" />
+          <Metric label="Typing Speed" value={liveWpm > 0 ? liveWpm.toFixed(0) : (stats?.typing_speed_wpm?.toFixed(0) ?? "--")} unit="WPM" />
+          <Metric label="Rage Clicks" value={liveRageClicks > 0 ? liveRageClicks : (stats?.rage_click_count ?? 0)} warn={liveRageClicks > 2} />
+          <Metric label="Error Rate" value={liveErrorRate > 0 ? `${(liveErrorRate * 100).toFixed(1)}` : (stats?.error_rate ? `${(stats.error_rate * 100).toFixed(1)}` : "0")} unit="%" warn={liveErrorRate > 0.15} />
           <Metric label="Total Samples" value={stats?.total_samples ?? 0} />
           <Metric label="Stressed %" value={stats?.stressed_pct ?? 0} unit="%" warn={(stats?.stressed_pct ?? 0) > 30} />
-          <Metric label="Current State" value={stats?.current_level ?? "--"} />
-          <Metric label="Connection" value={status === "connected" ? "Live" : "Offline"} />
-          <Metric label="Model" value="XGBoost" />
+          <Metric label="Current State" value={data?.level ?? stats?.current_level ?? "--"} />
         </div>
       </div>
 
@@ -163,13 +215,13 @@ export default function TrackingPage() {
         <h3 className="text-sm text-muted mb-3">Ground Truth Feedback</h3>
         <p className="text-xs text-muted mb-3">Help improve the model by confirming or correcting predictions.</p>
         <div className="flex gap-3">
-          <button onClick={() => api.feedback(level, level)} className="flex-1 py-2 rounded-lg border border-neutral/30 text-neutral text-sm hover:bg-neutral/10 transition">
+          <button onClick={() => api.feedback(level, level, "demo_user")} className="flex-1 py-2 rounded-lg border border-neutral/30 text-neutral text-sm hover:bg-neutral/10 transition">
             Accurate
           </button>
-          <button onClick={() => api.feedback(level, "NEUTRAL")} className="flex-1 py-2 rounded-lg border border-mild/30 text-mild text-sm hover:bg-mild/10 transition">
+          <button onClick={() => api.feedback(level, "NEUTRAL", "demo_user")} className="flex-1 py-2 rounded-lg border border-mild/30 text-mild text-sm hover:bg-mild/10 transition">
             Actually Relaxed
           </button>
-          <button onClick={() => api.feedback(level, "STRESSED")} className="flex-1 py-2 rounded-lg border border-stressed/30 text-stressed text-sm hover:bg-stressed/10 transition">
+          <button onClick={() => api.feedback(level, "STRESSED", "demo_user")} className="flex-1 py-2 rounded-lg border border-stressed/30 text-stressed text-sm hover:bg-stressed/10 transition">
             Actually Stressed
           </button>
         </div>

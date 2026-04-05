@@ -31,4 +31,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ user_id: userId, predicted_level: predicted, actual_level: actual, timestamp: Date.now() }),
     }),
+  reset: (userId: string = "demo_user") =>
+    request("/reset", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    }),
+  modelMetrics: () =>
+    request<{
+      accuracy: number;
+      precision: number;
+      recall: number;
+      f1: number;
+      confusion_matrix: number[][];
+      labels: string[];
+    }>("/model-metrics"),
 };

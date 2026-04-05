@@ -75,7 +75,7 @@ class InferenceEngine:
         level_idx = int(np.argmax(probs))
         level = LABELS[level_idx]
         confidence = float(np.max(probs))
-        score = float(probs[1] * 50.0 + probs[2] * 100.0)
+        score = float(probs[0] * 5.0 + probs[1] * 55.0 + probs[2] * 100.0)
 
         # Update personal baseline
         if baseline:
@@ -91,6 +91,12 @@ class InferenceEngine:
             "probabilities": {l: round(float(p), 3) for l, p in zip(LABELS, probs)},
             "insights": insights,
             "timestamp": time.time(),
+            # Raw features for live dashboard tiles
+            "typing_speed_wpm": round(float(features_dict.get("typing_speed_wpm", 0)), 1),
+            "rage_click_count": int(features_dict.get("rage_click_count", 0)),
+            "error_rate": round(float(features_dict.get("error_rate", 0)), 3),
+            "click_count": int(features_dict.get("click_count", 0)),
+            "mouse_speed_mean": round(float(features_dict.get("mouse_speed_mean", 0)), 1),
         }
 
     def _generate_insights(self, features: dict, level: str) -> List[str]:

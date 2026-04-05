@@ -33,6 +33,12 @@ export interface StressResult {
   probabilities: Record<string, number>;
   insights: string[];
   timestamp: number;
+  // Raw features for live tiles
+  typing_speed_wpm?: number;
+  rage_click_count?: number;
+  error_rate?: number;
+  click_count?: number;
+  mouse_speed_mean?: number;
 }
 
 export interface HistoryPoint {
@@ -55,6 +61,10 @@ export interface UserStats {
   avg_score: number;
   stressed_pct: number;
   current_level: string;
+  typing_speed_wpm: number;
+  rage_click_count: number;
+  error_rate: number;
+  click_count: number;
 }
 
 export interface HealthStatus {

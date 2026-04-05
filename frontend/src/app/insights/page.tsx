@@ -1,11 +1,121 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { api } from "@/lib/api";
+
+// ─── Confusion Matrix Component ───
+function ConfusionMatrix({ matrix, labels }: { matrix: number[][]; labels: string[] }) {
+  const maxVal = Math.max(...matrix.flat(), 1);
+  const colors = ["#2ecc71", "#f39c12", "#e74c3c"];
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full border-collapse">
+        <thead>
+          <tr>
+            <th className="p-2 text-xs text-muted"></th>
+            <th colSpan={3} className="p-2 text-xs text-muted text-center">Predicted</th>
+          </tr>
+          <tr>
+            <th className="p-2 text-xs text-muted"></th>
+            {labels.map((l, i) => (
+              <th key={i} className="p-2 text-xs font-semibold text-center" style={{ color: colors[i] }}>
+                {l}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.map((row, ri) => (
+            <tr key={ri}>
+              <td className="p-2 text-xs font-semibold text-right pr-3" style={{ color: colors[ri] }}>
+                {ri === 0 && <span className="text-muted text-[10px] block">Actual</span>}
+                {labels[ri]}
+              </td>
+              {row.map((val, ci) => {
+                const intensity = val / maxVal;
+                const isDiag = ri === ci;
+                return (
+                  <td
+                    key={ci}
+                    className="p-3 text-center text-lg font-bold rounded-lg border border-border/30"
+                    style={{
+                      backgroundColor: isDiag
+                        ? `rgba(46, 204, 113, ${0.1 + intensity * 0.3})`
+                        : val > 0
+                        ? `rgba(231, 76, 60, ${0.05 + intensity * 0.2})`
+                        : "rgba(255,255,255,0.02)",
+                      color: isDiag ? "#2ecc71" : val > 0 ? "#e74c3c" : "#666",
+                    }}
+                  >
+                    {val}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Metric Card ───
+function MetricCard({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
+  return (
+    <div className="p-4 rounded-lg bg-surface-hover text-center">
+      <div className="text-xs text-muted mb-1">{label}</div>
+      <div className="text-3xl font-bold" style={{ color }}>
+        {value}
+        <span className="text-sm font-normal text-muted">{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Insights Page ───
 export default function InsightsPage() {
+  const [metrics, setMetrics] = useState<{
+    accuracy: number;
+    precision: number;
+    recall: number;
+    f1: number;
+    confusion_matrix: number[][];
+    labels: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    api.modelMetrics().then(setMetrics).catch(() => {});
+  }, []);
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold">Insights</h1>
         <p className="text-sm text-muted mt-1">Understand what drives your stress scores</p>
+      </div>
+
+      {/* Model Performance Metrics */}
+      <div className="rounded-xl border border-border bg-surface p-6">
+        <h3 className="text-lg font-semibold mb-4">Model Performance (XGBoost Validation)</h3>
+        {metrics ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <MetricCard label="Accuracy" value={metrics.accuracy} unit="%" color="#2ecc71" />
+              <MetricCard label="Precision (macro)" value={metrics.precision} unit="%" color="#3498db" />
+              <MetricCard label="Recall (macro)" value={metrics.recall} unit="%" color="#f39c12" />
+              <MetricCard label="F1 Score (macro)" value={metrics.f1} unit="%" color="#9b59b6" />
+            </div>
+            <h4 className="text-sm font-semibold mb-3 text-muted">Confusion Matrix</h4>
+            <ConfusionMatrix matrix={metrics.confusion_matrix} labels={metrics.labels} />
+            <p className="text-xs text-muted mt-3">
+              Evaluated on 600 synthetic samples generated from the same distribution as training data. 
+              Diagonal cells (green) = correct predictions. Off-diagonal cells (red) = misclassifications.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-muted">Loading model metrics...</p>
+        )}
       </div>
 
       {/* Feature Importance */}
@@ -65,10 +175,6 @@ export default function InsightsPage() {
             <div className="text-xs text-muted mt-1">62 users, keyboard data, 3-class stress</div>
           </div>
         </div>
-        <p className="text-xs text-muted mt-4">
-          Stress detection in real-world settings is fundamentally harder than lab conditions.
-          The key insight from ETH Zurich 2025: "One does not fit all" — per-user calibration is essential.
-        </p>
       </div>
 
       {/* How It Works */}
