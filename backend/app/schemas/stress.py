@@ -78,6 +78,10 @@ class InferenceResponse(BaseModel):
     mouse_speed_mean: Optional[float] = 0.0
     mouse_reentry_count: Optional[float] = 0.0
     mouse_reentry_latency_ms: Optional[float] = 0.0
+    alert_state: Optional[str] = "NORMAL"
+    intervention: Optional[Dict] = None
+    trend: Optional[str] = "steady"
+    recovery_score: Optional[float] = None
 
 
 class CalibrationStatus(BaseModel):
@@ -112,3 +116,24 @@ class HealthResponse(BaseModel):
 
 class ResetRequest(BaseModel):
     user_id: str = "demo_user"
+
+
+class InterventionActionRequest(BaseModel):
+    user_id: str = "default"
+    action: str = Field(
+        ...,
+        description="start_break, snooze, im_okay, need_stronger_help, helped, not_helped, skipped",
+    )
+    intervention_type: Optional[str] = None
+    notes: Optional[str] = ""
+
+
+class InterventionEvent(BaseModel):
+    timestamp: float
+    action: str
+    intervention_type: str
+    alert_state: str
+    score_before: float = 0.0
+    score_after: float = 0.0
+    recovery_score: float = 0.0
+    notes: str = ""

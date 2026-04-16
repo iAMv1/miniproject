@@ -1,6 +1,15 @@
 /** MindPulse — API Client */
 
-import type { FeatureVector, StressResult, HistoryPoint, CalibrationStatus, UserStats, HealthStatus } from "./types";
+import type {
+  FeatureVector,
+  StressResult,
+  HistoryPoint,
+  CalibrationStatus,
+  UserStats,
+  HealthStatus,
+  InterventionSnapshot,
+  InterventionEvent,
+} from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
@@ -45,4 +54,23 @@ export const api = {
       confusion_matrix: number[][];
       labels: string[];
     }>("/model-metrics"),
+  interventionRecommendation: (userId: string = "default") =>
+    request<InterventionSnapshot>(`/interventions/recommendation?user_id=${userId}`),
+  interventionAction: (
+    action: "start_break" | "snooze" | "im_okay" | "need_stronger_help" | "helped" | "not_helped" | "skipped",
+    userId: string = "default",
+    interventionType?: string,
+    notes: string = "",
+  ) =>
+    request("/interventions/action", {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        action,
+        intervention_type: interventionType,
+        notes,
+      }),
+    }),
+  interventionHistory: (userId: string = "default", hours: number = 168) =>
+    request<InterventionEvent[]>(`/interventions/history?user_id=${userId}&hours=${hours}`),
 };

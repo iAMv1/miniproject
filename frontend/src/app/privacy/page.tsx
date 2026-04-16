@@ -58,6 +58,9 @@ export default function PrivacyPage() {
           All processing happens locally. Raw keystrokes are never stored or transmitted.
           Only derived behavioral features are used for prediction.
         </p>
+        <p className="text-xs text-muted mt-2">
+          Intervention feedback stores only action/outcome metadata (helped, not helped, skipped) and score deltas.
+        </p>
       </div>
 
       {/* Data Control */}

@@ -67,6 +67,10 @@ export function useStressStream(): UseStressStreamReturn {
               mouse_speed_mean: msg.mouse_speed_mean ?? 0,
               mouse_reentry_count: msg.mouse_reentry_count ?? 0,
               mouse_reentry_latency_ms: msg.mouse_reentry_latency_ms ?? 0,
+              alert_state: msg.alert_state ?? "NORMAL",
+              intervention: msg.intervention ?? null,
+              trend: msg.trend ?? "steady",
+              recovery_score: msg.recovery_score ?? 0,
             };
             setData(result);
             setHistory((prev) => [...prev.slice(-120), result]);

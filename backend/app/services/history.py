@@ -51,6 +51,28 @@ def _init_db():
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_history_user_time ON history(user_id, timestamp)"
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS intervention_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                action TEXT NOT NULL,
+                intervention_type TEXT NOT NULL,
+                alert_state TEXT NOT NULL,
+                score_before REAL DEFAULT 0,
+                score_after REAL DEFAULT 0,
+                recovery_score REAL DEFAULT 0,
+                notes TEXT DEFAULT ''
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_interventions_user_time
+            ON intervention_events(user_id, timestamp)
+            """
+        )
         conn.commit()
 
 
@@ -61,6 +83,7 @@ def reset(user_id: str):
     with _LOCK:
         with _connect() as conn:
             conn.execute("DELETE FROM history WHERE user_id=?", (user_id,))
+            conn.execute("DELETE FROM intervention_events WHERE user_id=?", (user_id,))
             conn.commit()
 
 
@@ -207,3 +230,140 @@ def get_stats(user_id: str) -> dict:
         "error_rate": round(avg_error, 3),
         "click_count": int(total_clicks),
     }
+
+
+def get_recent_scores(user_id: str, minutes: int = 60) -> list[float]:
+    cutoff = time.time() - (minutes * 60)
+    with _LOCK:
+        with _connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT score
+                FROM history
+                WHERE user_id=? AND timestamp >= ?
+                ORDER BY timestamp ASC
+                """,
+                (user_id, cutoff),
+            ).fetchall()
+    return [float(r[0]) for r in rows]
+
+
+def latest_point(user_id: str) -> dict:
+    with _LOCK:
+        with _connect() as conn:
+            row = conn.execute(
+                """
+                SELECT timestamp, score, level, confidence
+                FROM history
+                WHERE user_id=?
+                ORDER BY timestamp DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+    if not row:
+        return {"timestamp": time.time(), "score": 0.0, "level": "UNKNOWN", "confidence": 0.0}
+    return {
+        "timestamp": float(row[0]),
+        "score": float(row[1]),
+        "level": str(row[2]),
+        "confidence": float(row[3]),
+    }
+
+
+def append_intervention_event(
+    user_id: str,
+    action: str,
+    intervention_type: str,
+    alert_state: str,
+    score_before: float = 0.0,
+    score_after: float = 0.0,
+    recovery_score: float = 0.0,
+    notes: str = "",
+):
+    with _LOCK:
+        with _connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO intervention_events (
+                    user_id, timestamp, action, intervention_type, alert_state,
+                    score_before, score_after, recovery_score, notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    time.time(),
+                    action,
+                    intervention_type,
+                    alert_state,
+                    float(score_before),
+                    float(score_after),
+                    float(recovery_score),
+                    notes,
+                ),
+            )
+            conn.commit()
+
+
+def get_intervention_events(user_id: str, hours: int = 168) -> list[dict]:
+    cutoff = time.time() - (hours * 3600)
+    with _LOCK:
+        with _connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT timestamp, action, intervention_type, alert_state,
+                       score_before, score_after, recovery_score, notes
+                FROM intervention_events
+                WHERE user_id=? AND timestamp >= ?
+                ORDER BY timestamp DESC
+                LIMIT 400
+                """,
+                (user_id, cutoff),
+            ).fetchall()
+    return [
+        {
+            "timestamp": float(r[0]),
+            "action": str(r[1]),
+            "intervention_type": str(r[2]),
+            "alert_state": str(r[3]),
+            "score_before": float(r[4]),
+            "score_after": float(r[5]),
+            "recovery_score": float(r[6]),
+            "notes": str(r[7] or ""),
+        }
+        for r in rows
+    ]
+
+
+def intervention_effectiveness(user_id: str) -> dict[str, dict]:
+    with _LOCK:
+        with _connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT intervention_type, action, recovery_score
+                FROM intervention_events
+                WHERE user_id=?
+                """,
+                (user_id,),
+            ).fetchall()
+    summary: dict[str, dict] = {}
+    for intervention_type, action, recovery_score in rows:
+        key = str(intervention_type or "general")
+        if key not in summary:
+            summary[key] = {"helped": 0, "not_helped": 0, "skipped": 0, "mean_recovery": 0.0, "n": 0}
+        entry = summary[key]
+        if action == "helped":
+            entry["helped"] += 1
+        elif action == "not_helped":
+            entry["not_helped"] += 1
+        elif action == "skipped":
+            entry["skipped"] += 1
+        if abs(float(recovery_score)) > 1e-9:
+            entry["n"] += 1
+            entry["mean_recovery"] += float(recovery_score)
+    for key, entry in summary.items():
+        if entry["n"] > 0:
+            entry["mean_recovery"] = round(entry["mean_recovery"] / entry["n"], 2)
+        else:
+            entry["mean_recovery"] = 0.0
+    return summary
