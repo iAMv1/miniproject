@@ -12,10 +12,13 @@ from app.schemas.stress import (
     CalibrationStatus,
     HealthResponse,
     ResetRequest,
+    InterventionActionRequest,
+    InterventionEvent,
 )
 from app.services.inference import engine
 from app.services.websocket_manager import manager
 from app.services import history
+from app.services.interventions import intervention_engine
 from app.core.config import (
     CALIBRATION_TARGET_SAMPLES_PER_HOUR,
     CALIBRATION_MIN_HOURS_COVERED,
@@ -39,7 +42,25 @@ async def health():
 async def run_inference(req: InferenceRequest):
     features_raw = req.features.model_dump()
     result = engine.predict(features_raw, req.user_id)
+    intervention_state = intervention_engine.evaluate(req.user_id, result)
+    result.update(
+        {
+            "alert_state": intervention_state["alert_state"],
+            "intervention": intervention_state["intervention"],
+            "trend": intervention_state["trend"],
+            "recovery_score": intervention_state["recovery_score"],
+        }
+    )
     history.append(req.user_id, result)
+    if intervention_state["new_alert_triggered"] and intervention_state["intervention"]:
+        history.append_intervention_event(
+            user_id=req.user_id,
+            action="recommended",
+            intervention_type=intervention_state["intervention"]["intervention_type"],
+            alert_state=intervention_state["alert_state"],
+            score_before=float(result.get("score", 0.0)),
+            notes="auto-generated recommendation",
+        )
     await manager.broadcast({"type": "stress_update", **result, "user_id": req.user_id})
     return InferenceResponse(**result)
 
@@ -69,6 +90,46 @@ async def submit_feedback(req: FeedbackRequest):
         "status": "ok",
         "message": f"Feedback saved: predicted {req.predicted_level}, actual {req.actual_level}",
     }
+
+
+@router.get("/interventions/recommendation")
+async def get_recommendation(user_id: str = "default"):
+    latest = history.latest_point(user_id)
+    eval_result = intervention_engine.evaluate(
+        user_id,
+        {
+            "score": latest["score"],
+            "level": latest["level"],
+            "confidence": latest["confidence"],
+            "insights": [],
+            "feature_contributions": {},
+        },
+    )
+    snapshot = intervention_engine.active_snapshot(user_id)
+    return {
+        "alert_state": eval_result["alert_state"],
+        "trend": eval_result["trend"],
+        "recovery_score": eval_result["recovery_score"],
+        "intervention": eval_result["intervention"] or snapshot.get("last_recommendation"),
+        "active_intervention": snapshot.get("active_intervention"),
+        "active_start_score": snapshot.get("active_start_score"),
+    }
+
+
+@router.post("/interventions/action")
+async def intervention_action(req: InterventionActionRequest):
+    return intervention_engine.apply_action(
+        user_id=req.user_id,
+        action=req.action,
+        intervention_type=req.intervention_type or "",
+        notes=req.notes or "",
+    )
+
+
+@router.get("/interventions/history", response_model=list[InterventionEvent])
+async def intervention_history(user_id: str = "default", hours: int = 168):
+    events = history.get_intervention_events(user_id, hours)
+    return [InterventionEvent(**event) for event in events]
 
 
 @router.get("/calibration/{user_id}", response_model=CalibrationStatus)
@@ -190,7 +251,25 @@ async def websocket_stress(ws: WebSocket):
                         fv.model_dump(), payload.get("user_id", "default")
                     )
                     uid = payload.get("user_id", "default")
+                    intervention_state = intervention_engine.evaluate(uid, result)
+                    result.update(
+                        {
+                            "alert_state": intervention_state["alert_state"],
+                            "intervention": intervention_state["intervention"],
+                            "trend": intervention_state["trend"],
+                            "recovery_score": intervention_state["recovery_score"],
+                        }
+                    )
                     history.append(uid, result)
+                    if intervention_state["new_alert_triggered"] and intervention_state["intervention"]:
+                        history.append_intervention_event(
+                            user_id=uid,
+                            action="recommended",
+                            intervention_type=intervention_state["intervention"]["intervention_type"],
+                            alert_state=intervention_state["alert_state"],
+                            score_before=float(result.get("score", 0.0)),
+                            notes="auto-generated recommendation",
+                        )
                     await ws.send_json({"type": "stress_update", **result, "user_id": uid})
             except (json.JSONDecodeError, KeyError):
                 pass

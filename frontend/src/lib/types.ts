@@ -47,6 +47,10 @@ export interface StressResult {
   mouse_speed_mean?: number;
   mouse_reentry_count?: number;
   mouse_reentry_latency_ms?: number;
+  alert_state?: "NORMAL" | "EARLY_WARNING" | "BREAK_RECOMMENDED" | "RECOVERY";
+  intervention?: InterventionRecommendation | null;
+  trend?: "rising" | "steady" | "falling";
+  recovery_score?: number;
 }
 
 export interface HistoryPoint {
@@ -81,4 +85,35 @@ export interface HealthStatus {
   model_loaded: boolean;
   version: string;
   active_connections: number;
+}
+
+export interface InterventionRecommendation {
+  intervention_type: string;
+  title: string;
+  duration_min: number;
+  steps: string[];
+  rationale: string[];
+  expected_benefit: string;
+  coaching_tip: string;
+  severity: string;
+}
+
+export interface InterventionSnapshot {
+  alert_state: "NORMAL" | "EARLY_WARNING" | "BREAK_RECOMMENDED" | "RECOVERY";
+  trend: "rising" | "steady" | "falling";
+  recovery_score: number;
+  intervention: InterventionRecommendation | null;
+  active_intervention: string | null;
+  active_start_score: number;
+}
+
+export interface InterventionEvent {
+  timestamp: number;
+  action: string;
+  intervention_type: string;
+  alert_state: string;
+  score_before: number;
+  score_after: number;
+  recovery_score: number;
+  notes: string;
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import type { InterventionSnapshot } from "@/lib/types";
 
 // ─── Confusion Matrix Component ───
 function ConfusionMatrix({ matrix, labels }: { matrix: number[][]; labels: string[] }) {
@@ -83,9 +84,11 @@ export default function InsightsPage() {
     confusion_matrix: number[][];
     labels: string[];
   } | null>(null);
+  const [interventionSnapshot, setInterventionSnapshot] = useState<InterventionSnapshot | null>(null);
 
   useEffect(() => {
     api.modelMetrics().then(setMetrics).catch(() => {});
+    api.interventionRecommendation("demo_user").then(setInterventionSnapshot).catch(() => {});
   }, []);
 
   return (
@@ -194,6 +197,37 @@ export default function InsightsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Why Alert Fired */}
+      <div className="rounded-xl border border-border bg-surface p-6">
+        <h3 className="text-lg font-semibold mb-4">Why Alert Fired</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 rounded-lg bg-surface-hover">
+            <div className="text-sm text-muted">Current Alert State</div>
+            <div className="text-xl font-bold mt-1">{interventionSnapshot?.alert_state ?? "NORMAL"}</div>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-hover">
+            <div className="text-sm text-muted">Recent Trend</div>
+            <div className="text-xl font-bold mt-1">{interventionSnapshot?.trend ?? "steady"}</div>
+          </div>
+          <div className="p-4 rounded-lg bg-surface-hover">
+            <div className="text-sm text-muted">Recovery Score</div>
+            <div className="text-xl font-bold mt-1 text-neutral">
+              {interventionSnapshot?.recovery_score ? `+${interventionSnapshot.recovery_score.toFixed(1)}` : "0.0"}
+            </div>
+          </div>
+        </div>
+        {interventionSnapshot?.intervention && (
+          <div className="mt-4 p-4 rounded-lg bg-accent/5 border border-accent/20">
+            <div className="text-sm font-medium mb-2">{interventionSnapshot.intervention.title}</div>
+            <ul className="space-y-1 text-xs text-muted">
+              {interventionSnapshot.intervention.rationale.map((reason, i) => (
+                <li key={i}>• {reason}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

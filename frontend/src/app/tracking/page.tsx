@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useStressStream } from "@/hooks/use-stress-stream";
 import { api } from "@/lib/api";
-import type { UserStats } from "@/lib/types";
+import type { UserStats, InterventionRecommendation } from "@/lib/types";
 
 // ─── SVG Arc Gauge (MindPulse's signature component) ───
 function StressGauge({ score, level }: { score: number; level: string }) {
@@ -109,11 +109,15 @@ function Recommendation({ score }: { score: number }) {
 
 // ─── Main Page ───
 export default function TrackingPage() {
-  const { data, status, send } = useStressStream();
+  const { data, status } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
   const prevLevelRef = useRef<string>("UNKNOWN");
   const notifPermissionRef = useRef<boolean>(false);
   const stressStreakRef = useRef<number>(0);
+  const [alertState, setAlertState] = useState<"NORMAL" | "EARLY_WARNING" | "BREAK_RECOMMENDED" | "RECOVERY">("NORMAL");
+  const [intervention, setIntervention] = useState<InterventionRecommendation | null>(null);
+  const [activeIntervention, setActiveIntervention] = useState<string | null>(null);
+  const [breakSeconds, setBreakSeconds] = useState<number>(0);
 
   // Request notification permission on mount
   useEffect(() => {
@@ -136,19 +140,39 @@ export default function TrackingPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    api.interventionRecommendation("demo_user")
+      .then((res) => {
+        setAlertState(res.alert_state);
+        setIntervention(res.intervention);
+        setActiveIntervention(res.active_intervention);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!breakSeconds) return;
+    const timer = setInterval(() => setBreakSeconds((prev) => Math.max(0, prev - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [breakSeconds]);
+
   // Fire browser notification when stress is detected
   useEffect(() => {
     if (!data) return;
+    if (data.alert_state) setAlertState(data.alert_state);
+    if (data.intervention) setIntervention(data.intervention);
+
     const currentLevel = data.level;
     if (currentLevel === "STRESSED" && (data.confidence ?? 0) >= 0.7) {
       stressStreakRef.current += 1;
     } else {
       stressStreakRef.current = 0;
     }
-    if (currentLevel === "STRESSED" && prevLevelRef.current !== "STRESSED") {
-      if (notifPermissionRef.current && stressStreakRef.current >= 2) {
+    const shouldAlert = (data.alert_state === "BREAK_RECOMMENDED" && stressStreakRef.current >= 2) || (data.score >= 85 && data.confidence >= 0.7);
+    if (shouldAlert && prevLevelRef.current !== "STRESSED") {
+      if (notifPermissionRef.current) {
         new Notification("⚠️ MindPulse — Stress Alert", {
-          body: "Elevated stress detected! Take a moment to breathe deeply.",
+          body: "Need a break now. Start your guided reset in MindPulse.",
           icon: "/favicon.ico",
           tag: "mindpulse-stress",
         });
@@ -166,6 +190,20 @@ export default function TrackingPage() {
   const liveRageClicks = data?.rage_click_count ?? 0;
   const liveErrorRate = data?.error_rate ?? 0;
   const liveClicks = data?.click_count ?? 0;
+  const interventionStateColor =
+    alertState === "BREAK_RECOMMENDED"
+      ? "border-stressed/40 bg-stressed/10"
+      : alertState === "EARLY_WARNING"
+      ? "border-mild/40 bg-mild/10"
+      : alertState === "RECOVERY"
+      ? "border-neutral/40 bg-neutral/10"
+      : "border-border bg-surface";
+
+  const formatBreakTimer = (total: number) => {
+    const m = String(Math.floor(total / 60)).padStart(2, "0");
+    const s = String(total % 60).padStart(2, "0");
+    return `${m}:${s}`;
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -190,6 +228,118 @@ export default function TrackingPage() {
           </div>
         </div>
       </div>
+
+      {/* Alert Banner */}
+      <div className={`rounded-xl border p-4 ${interventionStateColor}`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">
+              {alertState === "BREAK_RECOMMENDED"
+                ? "🚨 Break Needed Now"
+                : alertState === "EARLY_WARNING"
+                ? "⚠️ Early Stress Warning"
+                : alertState === "RECOVERY"
+                ? "✅ Recovery In Progress"
+                : "🟢 Stable Work State"}
+            </h3>
+            <p className="text-xs text-muted mt-1">
+              {data?.trend ? `Trend: ${data.trend}` : "Trend: steady"} · Confidence:{" "}
+              {data ? `${(data.confidence * 100).toFixed(1)}%` : "--"}
+              {data?.recovery_score ? ` · Recovery +${data.recovery_score.toFixed(1)}` : ""}
+            </p>
+          </div>
+          <div className="text-xs text-muted">
+            {intervention?.expected_benefit || "No intervention needed right now"}
+          </div>
+        </div>
+      </div>
+
+      {/* Sticky Active Intervention Panel */}
+      {(alertState === "BREAK_RECOMMENDED" || activeIntervention) && intervention && (
+        <div className="sticky top-4 z-10 rounded-xl border border-stressed/40 bg-surface p-4 shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-stressed">{intervention.title}</h3>
+              <p className="text-xs text-muted mt-1">
+                Duration: {intervention.duration_min} min · Severity: {intervention.severity}
+              </p>
+            </div>
+            <div className="text-lg font-mono">{breakSeconds > 0 ? formatBreakTimer(breakSeconds) : "--:--"}</div>
+          </div>
+          <ul className="mt-3 space-y-1 text-sm text-muted">
+            {intervention.steps.map((step, idx) => (
+              <li key={idx}>• {step}</li>
+            ))}
+          </ul>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={async () => {
+                await api.interventionAction("start_break", "demo_user", intervention.intervention_type);
+                setActiveIntervention(intervention.intervention_type);
+                setBreakSeconds(intervention.duration_min * 60);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-neutral/30 text-neutral text-xs hover:bg-neutral/10"
+            >
+              Start break timer
+            </button>
+            <button
+              onClick={async () => {
+                await api.interventionAction("snooze", "demo_user", intervention.intervention_type);
+                setActiveIntervention(null);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-hover"
+            >
+              Snooze 10 min
+            </button>
+            <button
+              onClick={async () => {
+                await api.interventionAction("im_okay", "demo_user", intervention.intervention_type);
+                setActiveIntervention(null);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-hover"
+            >
+              I&apos;m okay
+            </button>
+            <button
+              onClick={() => api.interventionAction("need_stronger_help", "demo_user", intervention.intervention_type)}
+              className="px-3 py-1.5 rounded-lg border border-stressed/30 text-stressed text-xs hover:bg-stressed/10"
+            >
+              Need stronger help
+            </button>
+          </div>
+          {breakSeconds === 0 && activeIntervention && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                onClick={async () => {
+                  await api.interventionAction("helped", "demo_user", intervention.intervention_type);
+                  setActiveIntervention(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-neutral/30 text-neutral text-xs hover:bg-neutral/10"
+              >
+                This helped
+              </button>
+              <button
+                onClick={async () => {
+                  await api.interventionAction("not_helped", "demo_user", intervention.intervention_type);
+                  setActiveIntervention(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-stressed/30 text-stressed text-xs hover:bg-stressed/10"
+              >
+                Didn&apos;t help
+              </button>
+              <button
+                onClick={async () => {
+                  await api.interventionAction("skipped", "demo_user", intervention.intervention_type);
+                  setActiveIntervention(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-border text-xs hover:bg-surface-hover"
+              >
+                Skipped
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Gauge + Stats Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -218,7 +368,20 @@ export default function TrackingPage() {
       {/* Insights + Recommendation */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Insights insights={insights} level={level} />
-        <Recommendation score={score} />
+        <div className="space-y-4">
+          <Recommendation score={score} />
+          {intervention && (
+            <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+              <h3 className="text-sm font-semibold mb-2">AI Guidance</h3>
+              <p className="text-xs text-muted mb-2">{intervention.expected_benefit}</p>
+              <ul className="text-sm text-muted space-y-1">
+                {intervention.rationale.map((reason, idx) => (
+                  <li key={idx}>• {reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Explainability */}

@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import type { HistoryPoint, UserStats } from "@/lib/types";
+import type { HistoryPoint, UserStats, InterventionEvent } from "@/lib/types";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 
 export default function HistoryPage() {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
+  const [interventions, setInterventions] = useState<InterventionEvent[]>([]);
   const [hours, setHours] = useState(24);
 
   useEffect(() => {
     api.history("default", hours).then(setHistory).catch(() => {});
     api.stats().then(setStats).catch(() => {});
+    api.interventionHistory("default", Math.max(24, hours)).then(setInterventions).catch(() => {});
   }, [hours]);
 
   const chartData = history.map((h) => ({
@@ -100,6 +102,25 @@ export default function HistoryPage() {
             );
           })}
           {history.length === 0 && <p className="text-sm text-muted">No history yet. Start tracking to collect data.</p>}
+        </div>
+      </div>
+
+      {/* Intervention Markers + Deltas */}
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <h3 className="text-sm text-muted mb-3">Alert & Intervention Timeline</h3>
+        <div className="space-y-2 max-h-60 overflow-auto">
+          {interventions.slice(0, 25).map((event, i) => (
+            <div key={i} className="flex items-center justify-between py-1 border-b border-border/50 last:border-0 text-xs">
+              <span className="text-muted">{new Date(event.timestamp * 1000).toLocaleTimeString()}</span>
+              <span>{event.action}</span>
+              <span>{event.intervention_type}</span>
+              <span>{event.score_before.toFixed(1)} → {event.score_after.toFixed(1)}</span>
+              <span className={event.recovery_score > 0 ? "text-neutral" : "text-muted"}>
+                {event.recovery_score > 0 ? `Recovery +${event.recovery_score.toFixed(1)}` : "--"}
+              </span>
+            </div>
+          ))}
+          {interventions.length === 0 && <p className="text-sm text-muted">No alert/intervention events yet.</p>}
         </div>
       </div>
     </div>
