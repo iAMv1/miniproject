@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import type { HistoryPoint, UserStats, InterventionEvent } from "@/lib/types";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 import { Clock, TrendingUp, Activity } from "lucide-react";
@@ -23,6 +24,7 @@ const ACTION_MAP: Record<string, { label: string; emoji: string }> = {
 };
 
 export default function HistoryPage() {
+  const { userId } = useAuth();
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [interventions, setInterventions] = useState<InterventionEvent[]>([]);
@@ -34,16 +36,16 @@ export default function HistoryPage() {
     setLoading(true);
     setError(null);
     Promise.all([
-      api.history("default", hours).catch(() => { setError("Couldn't read your rhythm — try again?"); return []; }),
-      api.stats().catch(() => null),
-      api.interventionHistory("default", Math.max(24, hours)).catch(() => []),
+      api.history(userId, hours).catch(() => { setError("Couldn't read your rhythm — try again?"); return []; }),
+      api.stats(userId).catch(() => null),
+      api.interventionHistory(userId, Math.max(24, hours)).catch(() => []),
     ]).then(([h, s, i]) => {
       setHistory(h);
       setStats(s);
       setInterventions(i);
       setLoading(false);
     });
-  }, [hours]);
+  }, [hours, userId]);
 
   const chartData = history.map((h) => ({
     time: new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),

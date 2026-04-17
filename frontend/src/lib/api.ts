@@ -99,6 +99,28 @@ export const api = {
     }),
   interventionHistory: (userId: string = "default", hours: number = 168) =>
     request<InterventionEvent[]>(`/interventions/history?user_id=${userId}&hours=${hours}`),
+  checkWindDown: (userId: string = "default") =>
+    request<{ wind_down: { type: string; title: string; message: string; severity: string; actions: { label: string; action: string }[] } | null }>(
+      `/interventions/wind-down?user_id=${userId}`
+    ),
+  scheduleBreak: (userId: string = "default", breakTime: string, interventionType: string = "breathing_reset") =>
+    request<{ status: string; break: { id: string; scheduled_for: string; intervention_type: string; status: string } }>(
+      `/interventions/schedule-break?user_id=${userId}&break_time=${encodeURIComponent(breakTime)}&intervention_type=${interventionType}`,
+      { method: "POST" }
+    ),
+  getScheduledBreaks: (userId: string = "default") =>
+    request<{ breaks: { id: string; scheduled_for: string; intervention_type: string; status: string; created_at: string }[] }>(
+      `/interventions/scheduled-breaks?user_id=${userId}`
+    ),
+  cancelBreak: (userId: string = "default", breakId: string) =>
+    request<{ status: string; message: string }>(
+      `/interventions/cancel-break?user_id=${userId}&break_id=${breakId}`,
+      { method: "POST" }
+    ),
+  checkDueBreaks: (userId: string = "default") =>
+    request<{ due_break: { type: string; title: string; message: string; break_id: string; intervention_type: string } | null }>(
+      `/interventions/check-due-breaks?user_id=${userId}`
+    ),
 };
 
 export function setToken(token: string) {

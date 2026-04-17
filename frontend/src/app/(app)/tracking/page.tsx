@@ -258,7 +258,7 @@ export default function TrackingPage() {
   const CRITICAL_STRESS_SCORE = 85;
   const MIN_CONFIDENCE_FOR_CRITICAL_ALERT = 0.7;
   const { userId } = useAuth();
-  const { data: wsData, status, error: wsError } = useStressStream();
+  const { data: wsData, history: wsHistory, status, error: wsError } = useStressStream();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [polledData, setPolledData] = useState<StressResult | null>(null);
   const prevLevelRef = useRef<string>("UNKNOWN");
@@ -273,6 +273,14 @@ export default function TrackingPage() {
     null,
   );
   const [breakSeconds, setBreakSeconds] = useState<number>(0);
+  const [windDown, setWindDown] = useState<{
+    type: string;
+    title: string;
+    message: string;
+    severity: string;
+    actions: { label: string; action: string }[];
+  } | null>(null);
+  const [windDownDismissed, setWindDownDismissed] = useState(false);
 
   const data = wsData || polledData;
 
@@ -382,6 +390,23 @@ export default function TrackingPage() {
     prevLevelRef.current = currentLevel;
   }, [data]);
 
+  useEffect(() => {
+    const checkWindDown = () => {
+      if (windDownDismissed) return;
+      api
+        .checkWindDown(userId)
+        .then((res) => {
+          if (res.wind_down) {
+            setWindDown(res.wind_down);
+          }
+        })
+        .catch(() => {});
+    };
+    checkWindDown();
+    const interval = setInterval(checkWindDown, 300000);
+    return () => clearInterval(interval);
+  }, [userId, windDownDismissed]);
+
   const score = data?.score ?? 0;
   const level = data?.level ?? "UNKNOWN";
   const insights = data?.insights ?? [];
@@ -440,7 +465,7 @@ export default function TrackingPage() {
               color: "#dc2626",
             }}
           >
-            Start over
+            Recalibrate my baseline
           </button>
           <div className="flex items-center gap-2 text-xs">
             <span
@@ -487,6 +512,53 @@ export default function TrackingPage() {
           </div>
         </div>
       </div>
+
+      {/* Wind-Down Banner */}
+      {windDown && !windDownDismissed && (
+        <div
+          className="rounded-lg border p-5 transition-all duration-300"
+          style={{
+            borderColor: "#5b4fc440",
+            background: "linear-gradient(135deg, #141420 0%, #1a1a2e 100%)",
+            boxShadow: "0 0 24px rgba(91,79,196,0.08)",
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div className="text-2xl">🌙</div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium" style={{ color: "#F2EFE9" }}>
+                {windDown.title}
+              </h3>
+              <p className="text-xs mt-1" style={{ color: "#857F75" }}>
+                {windDown.message}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {windDown.actions.map((action, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      if (action.action === "acknowledge") {
+                        setWindDownDismissed(true);
+                        setWindDown(null);
+                      } else {
+                        setWindDownDismissed(true);
+                        setWindDown(null);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+                    style={{
+                      borderColor: idx === 0 ? "#5b4fc44d" : "#1c1c2e",
+                      color: idx === 0 ? "#5b4fc4" : "#857F75",
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sticky Active Intervention Panel */}
       {(alertState === "BREAK_RECOMMENDED" || activeIntervention) &&
@@ -638,21 +710,9 @@ export default function TrackingPage() {
           style={{ background: "#141420", borderColor: "#1c1c2e" }}
         >
           <EnergyGauge score={score} level={level} />
-          <div className="mt-3 text-xs tabular-nums" style={{ color: "#857F75" }}>
-            Confidence: {data ? `${(data.confidence * 100).toFixed(1)}%` : "--"}
-          </div>
-          {data && (
-            <div
-              className="mt-2 text-[11px] text-center tabular-nums"
-              style={{ color: "#857F75" }}
-            >
-              Model: {data.model_score?.toFixed(1) ?? "--"} · Equation:{" "}
-              {data.equation_score?.toFixed(1) ?? "--"}
-            </div>
-          )}
         </div>
 
-        <div className="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
           <Metric
             label="Typing Speed"
             value={
@@ -663,7 +723,7 @@ export default function TrackingPage() {
             unit="WPM"
           />
           <Metric
-            label="Frustrated clicks"
+            label="Quick clicks"
             value={liveRageClicks > 0 ? liveRageClicks : (stats?.rage_click_count ?? 0)}
             warn={liveRageClicks > 2}
           />
@@ -679,18 +739,65 @@ export default function TrackingPage() {
             unit="%"
             warn={liveErrorRate > 0.15}
           />
-          <Metric label="Total Samples" value={stats?.total_samples ?? 0} />
           <Metric
-            label="Low energy %"
+            label="Energy dips"
             value={stats?.stressed_pct ?? 0}
             unit="%"
             warn={(stats?.stressed_pct ?? 0) > 30}
           />
-          <Metric
-            label="Rhythm state"
-            value={data?.level ?? stats?.current_level ?? "--"}
-          />
         </div>
+      </div>
+
+      {/* Energy Trend Sparkline */}
+      <div
+        className="rounded-lg border p-5"
+        style={{ background: "#141420", borderColor: "#1c1c2e" }}
+      >
+        <h3 className="text-sm mb-4 font-medium" style={{ color: "#857F75" }}>
+          Your energy trend (last 30 min)
+        </h3>
+        {wsHistory.length > 1 ? (
+          <div className="h-24">
+            <svg width="100%" height="100%" viewBox="0 0 600 100" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="energy-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#5b4fc4" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#5b4fc4" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              {(() => {
+                const points = wsHistory.slice(-30).map((h, i, arr) => {
+                  const x = (i / (arr.length - 1)) * 600;
+                  const y = 100 - (energyFromStress(h.score) / 100) * 100;
+                  return { x, y };
+                });
+                const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+                const areaPath = `${linePath} L 600 100 L 0 100 Z`;
+                return (
+                  <>
+                    <path d={areaPath} fill="url(#energy-gradient)" />
+                    <path d={linePath} fill="none" stroke="#5b4fc4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    {points.length > 0 && (
+                      <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="4" fill="#5b4fc4" />
+                    )}
+                  </>
+                );
+              })()}
+            </svg>
+          </div>
+        ) : data && data.level !== "UNKNOWN" ? (
+          <div className="h-24 flex items-center justify-center">
+            <span className="text-xs" style={{ color: "#857F75" }}>
+              Building trend line...
+            </span>
+          </div>
+        ) : (
+          <div className="h-24 flex items-center justify-center">
+            <span className="text-xs" style={{ color: "#857F75" }}>
+              Collecting data...
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Insights + Recommendation */}
@@ -718,43 +825,6 @@ export default function TrackingPage() {
           )}
         </div>
       </div>
-
-      {/* Explainability */}
-      {data?.feature_contributions &&
-        Object.keys(data.feature_contributions).length > 0 && (
-          <div
-            className="rounded-lg border p-5"
-            style={{ background: "#141420", borderColor: "#1c1c2e" }}
-          >
-            <h3
-              className="text-sm mb-4 font-medium"
-              style={{ color: "#857F75" }}
-            >
-              What shaped your score
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              {Object.entries(data.feature_contributions).map(
-                ([key, value]) => (
-                  <div
-                    key={key}
-                    className="rounded-lg p-3 transition-all duration-200 hover:shadow-[0_0_16px_rgba(91,79,196,0.1)]"
-                    style={{ background: "#1a1a2e" }}
-                  >
-                    <div className="text-[11px]" style={{ color: "#857F75" }}>
-                      {key}
-                    </div>
-                    <div
-                      className="text-lg font-semibold tabular-nums"
-                      style={{ color: "#F2EFE9" }}
-                    >
-                      {Number(value).toFixed(1)}
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-          </div>
-        )}
 
       {/* Feedback */}
       <div

@@ -2,73 +2,265 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import type { InterventionSnapshot } from "@/lib/types";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+} from "recharts";
+import { Clock, Calendar, TrendingUp, Award, Zap, Coffee } from "lucide-react";
 
-// ─── Confusion Matrix Component ───
-function ConfusionMatrix({ matrix, labels }: { matrix: number[][]; labels: string[] }) {
-  const maxVal = Math.max(...matrix.flat(), 1);
-  const colors = ["#22c55e", "#d97706", "#dc2626"];
+// ─── Soft Labels ───
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const ENERGY_COLORS = {
+  high: "#22c55e",
+  medium: "#d97706",
+  low: "#dc2626",
+};
+const BREAK_COLORS = ["#5b4fc4", "#22c55e", "#d97706", "#3b82f6"];
+
+// ─── Hourly Energy Bar ───
+function BestHoursChart({ data }: { data: { hour: string; energy: number }[] }) {
+  const hasData = data.some((d) => d.energy > 0);
+  const bestHour = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy > b.energy ? a : b), data[0]);
+
+  if (!hasData) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Clock size={18} style={{ color: "#5b4fc4" }} />
+          <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+            Your best hours
+          </h3>
+        </div>
+        <div className="h-[200px] flex items-center justify-center">
+          <p className="text-sm" style={{ color: "#857F75" }}>
+            Keep using MindPulse — your focus patterns will appear here after a day or two.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="p-2 text-xs text-muted"></th>
-            <th colSpan={3} className="p-2 text-xs text-muted text-center font-medium">Predicted</th>
-          </tr>
-          <tr>
-            <th className="p-2 text-xs text-muted"></th>
-            {labels.map((l, i) => (
-              <th key={i} className="p-2 text-xs font-semibold text-center" style={{ color: colors[i] }}>
-                {l}
-              </th>
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Clock size={18} style={{ color: "#5b4fc4" }} />
+        <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+          Your best hours
+        </h3>
+      </div>
+      <p className="text-sm mb-4" style={{ color: "#857F75" }}>
+        You&apos;re typically most focused{" "}
+        <span style={{ color: "#22c55e" }}>{bestHour?.hour}</span>
+      </p>
+      <ResponsiveContainer width="100%" height={200}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" />
+          <XAxis dataKey="hour" stroke="#857F75" fontSize={12} />
+          <YAxis stroke="#857F75" fontSize={12} domain={[0, 100]} />
+          <Tooltip
+            contentStyle={{
+              background: "#141420",
+              border: "1px solid #1c1c2e",
+              borderRadius: "8px",
+              color: "#F2EFE9",
+            }}
+          />
+          <Bar dataKey="energy" radius={[4, 4, 0, 0]}>
+            {data.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={entry.energy > 60 ? "#22c55e" : entry.energy > 40 ? "#d97706" : "#dc2626"}
+              />
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {matrix.map((row, ri) => (
-            <tr key={ri}>
-              <td className="p-2 text-xs font-semibold text-right pr-3" style={{ color: colors[ri] }}>
-                {ri === 0 && <span className="text-muted text-[10px] block">Actual</span>}
-                {labels[ri]}
-              </td>
-              {row.map((val, ci) => {
-                const intensity = val / maxVal;
-                const isDiag = ri === ci;
-                return (
-                  <td
-                    key={ci}
-                    className="p-3 text-center text-lg font-bold rounded-md border border-border/30 tabular-nums"
-                    style={{
-                      backgroundColor: isDiag
-                        ? `rgba(34, 197, 94, ${0.1 + intensity * 0.3})`
-                        : val > 0
-                        ? `rgba(220, 38, 38, ${0.05 + intensity * 0.2})`
-                        : "rgba(255,255,255,0.02)",
-                      color: isDiag ? "#22c55e" : val > 0 ? "#dc2626" : "#4a4a5a",
-                    }}
-                  >
-                    {val}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
-// ─── Metric Card ───
-function MetricCard({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
+// ─── Day of Week Pattern ───
+function DayOfWeekChart({ data }: { data: { day: string; energy: number }[] }) {
+  const hasData = data.some((d) => d.energy > 0);
+  const worstDay = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy < b.energy ? a : b), data[0]);
+  const bestDay = data.filter((d) => d.energy > 0).reduce((a, b) => (a.energy > b.energy ? a : b), data[0]);
+
+  if (!hasData) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Calendar size={18} style={{ color: "#5b4fc4" }} />
+          <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+            Your week pattern
+          </h3>
+        </div>
+        <div className="h-[180px] flex items-center justify-center">
+          <p className="text-sm" style={{ color: "#857F75" }}>
+            More data needed — your weekly rhythm will emerge after a few days.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 rounded-lg bg-surface-hover text-center">
-      <div className="text-xs text-muted mb-1.5 font-medium">{label}</div>
-      <div className="text-3xl font-semibold tabular-nums" style={{ color }}>
-        {value}
-        <span className="text-sm font-normal text-muted">{unit}</span>
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Calendar size={18} style={{ color: "#5b4fc4" }} />
+        <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+          Your week pattern
+        </h3>
+      </div>
+      <p className="text-sm mb-4" style={{ color: "#857F75" }}>
+        <span style={{ color: "#22c55e" }}>{bestDay?.day}s</span> are your best days ·{" "}
+        <span style={{ color: "#d97706" }}>{worstDay?.day}s</span> tend to be harder
+      </p>
+      <ResponsiveContainer width="100%" height={180}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1c1c2e" />
+          <XAxis dataKey="day" stroke="#857F75" fontSize={12} />
+          <YAxis stroke="#857F75" fontSize={12} domain={[0, 100]} />
+          <Tooltip
+            contentStyle={{
+              background: "#141420",
+              border: "1px solid #1c1c2e",
+              borderRadius: "8px",
+              color: "#F2EFE9",
+            }}
+          />
+          <Bar dataKey="energy" fill="#5b4fc4" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ─── Break Effectiveness Donut ───
+function BreakEffectivenessChart({
+  data,
+}: {
+  data: { name: string; helped: number; total: number }[];
+}) {
+  const totalHelped = data.reduce((sum, d) => sum + d.helped, 0);
+  const totalBreaks = data.reduce((sum, d) => sum + d.total, 0);
+  const successRate = totalBreaks > 0 ? ((totalHelped / totalBreaks) * 100).toFixed(0) : "0";
+  const hasData = totalBreaks > 0;
+
+  if (!hasData) {
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Coffee size={18} style={{ color: "#5b4fc4" }} />
+          <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+            What works for you
+          </h3>
+        </div>
+        <div className="h-[150px] flex items-center justify-center">
+          <p className="text-sm" style={{ color: "#857F75" }}>
+            Take a break suggestion when it appears — we&apos;ll track what helps you recover.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Coffee size={18} style={{ color: "#5b4fc4" }} />
+        <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+          What works for you
+        </h3>
+      </div>
+      <p className="text-sm mb-4" style={{ color: "#857F75" }}>
+        <span style={{ color: "#22c55e" }}>{successRate}%</span> of your breaks helped you recover
+      </p>
+      <div className="flex items-center gap-6">
+        <ResponsiveContainer width={150} height={150}>
+          <PieChart>
+            <Pie
+              data={data.map((d) => ({ name: d.name, value: d.helped }))}
+              cx="50%"
+              cy="50%"
+              innerRadius={40}
+              outerRadius={60}
+              paddingAngle={2}
+              dataKey="value"
+            >
+              {data.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={BREAK_COLORS[index % BREAK_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{
+                background: "#141420",
+                border: "1px solid #1c1c2e",
+                borderRadius: "8px",
+                color: "#F2EFE9",
+              }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="space-y-2">
+          {data.map((d, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm">
+              <span
+                className="w-3 h-3 rounded-full inline-block"
+                style={{ background: BREAK_COLORS[i % BREAK_COLORS.length] }}
+              />
+              <span style={{ color: "#857F75" }}>
+                {d.name}: {d.helped}/{d.total} helped
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Weekly Wins ───
+function WeeklyWins({ stats }: { stats: { goodDays: number; breaksHelped: number; streak: number } }) {
+  const badges = [
+    { icon: <Award size={20} style={{ color: "#22c55e" }} />, label: `${stats.goodDays} good energy days` },
+    { icon: <Zap size={20} style={{ color: "#d97706" }} />, label: `${stats.breaksHelped} breaks that helped` },
+    { icon: <TrendingUp size={20} style={{ color: "#5b4fc4" }} />, label: `${stats.streak}-day streak` },
+  ];
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        <Award size={18} style={{ color: "#5b4fc4" }} />
+        <h3 className="text-lg font-medium" style={{ color: "#F2EFE9" }}>
+          This week&apos;s wins
+        </h3>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {badges.map((b, i) => (
+          <div
+            key={i}
+            className="p-4 rounded-lg flex items-center gap-3"
+            style={{ background: "#1c1c2e" }}
+          >
+            {b.icon}
+            <span className="text-sm font-medium" style={{ color: "#F2EFE9" }}>
+              {b.label}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -76,169 +268,177 @@ function MetricCard({ label, value, unit, color }: { label: string; value: numbe
 
 // ─── Main Insights Page ───
 export default function InsightsPage() {
-  const [metrics, setMetrics] = useState<{
-    accuracy: number;
-    precision: number;
-    recall: number;
-    f1: number;
-    confusion_matrix: number[][];
-    labels: string[];
-  } | null>(null);
-  const [interventionSnapshot, setInterventionSnapshot] = useState<InterventionSnapshot | null>(null);
+  const { userId } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [hourlyData, setHourlyData] = useState<{ hour: string; energy: number }[]>([]);
+  const [dayOfWeekData, setDayOfWeekData] = useState<{ day: string; energy: number }[]>([]);
+  const [breakEffectiveness, setBreakEffectiveness] = useState<
+    { name: string; helped: number; total: number }[]
+  >([]);
+  const [weeklyStats, setWeeklyStats] = useState({
+    goodDays: 0,
+    breaksHelped: 0,
+    streak: 0,
+  });
 
   useEffect(() => {
-    Promise.all([
-      api.modelMetrics().catch(() => null),
-      api.interventionRecommendation("demo_user").catch(() => null),
-    ]).then(([m, s]) => {
-      setMetrics(m);
-      setInterventionSnapshot(s);
-      setLoading(false);
-    });
-  }, []);
+    const fetchInsights = async () => {
+      try {
+        // Fetch history for pattern analysis
+        const history = await api.history(userId, 168); // 7 days
+
+        // Calculate hourly energy patterns
+        const hourMap = new Map<number, number[]>();
+        const dayMap = new Map<number, number[]>();
+
+        history.forEach((entry) => {
+          const date = new Date(entry.timestamp * 1000);
+          const hour = date.getHours();
+          const day = date.getDay();
+          const energy = 100 - entry.score;
+
+          if (!hourMap.has(hour)) hourMap.set(hour, []);
+          hourMap.get(hour)!.push(energy);
+
+          if (!dayMap.has(day)) dayMap.set(day, []);
+          dayMap.get(day)!.push(energy);
+        });
+
+        // Build hourly data
+        const hourly = Array.from({ length: 24 }, (_, h) => {
+          const values = hourMap.get(h) || [];
+          const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+          return {
+            hour: `${h}:00`,
+            energy: avg !== null ? Math.round(avg) : 0,
+          };
+        });
+        setHourlyData(hourly);
+
+        // Build day-of-week data
+        const dayOfWeek = DAY_LABELS.map((day, idx) => {
+          const values = dayMap.get(idx) || [];
+          const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : null;
+          return { day, energy: avg !== null ? Math.round(avg) : 0 };
+        });
+        setDayOfWeekData(dayOfWeek);
+
+        // Fetch intervention history for break effectiveness
+        const interventions = await api.interventionHistory(userId, 168).catch(() => []);
+
+        const breakTypeMap: Record<string, string> = {
+          breathing_reset: "Breathing",
+          posture_eye_break: "Stretch",
+          cognitive_reset: "Walk",
+          hydrate_walk: "Hydrate",
+        };
+        const breakTypes = ["Breathing", "Stretch", "Walk", "Hydrate"];
+        const typeMap = new Map<string, { helped: number; total: number }>();
+
+        breakTypes.forEach((type) => {
+          typeMap.set(type, { helped: 0, total: 0 });
+        });
+
+        interventions.forEach((event) => {
+          const rawType = event.intervention_type || "breathing_reset";
+          const displayType = breakTypeMap[rawType] || "Breathing";
+          const current = typeMap.get(displayType)!;
+          current.total += 1;
+          if (event.action === "helped") {
+            current.helped += 1;
+          }
+        });
+
+        setBreakEffectiveness(
+          breakTypes.map((type) => ({
+            name: type,
+            helped: typeMap.get(type)!.helped,
+            total: typeMap.get(type)!.total,
+          }))
+        );
+
+        // Calculate weekly stats
+        const goodDays = new Set(
+          history
+            .filter((e) => e.score < 40)
+            .map((e) => {
+              const d = new Date(e.timestamp * 1000);
+              return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+            })
+        ).size;
+
+        const breaksHelped = interventions.filter((e) => e.action === "helped").length;
+
+        // Simple streak calculation (consecutive days with good energy)
+        let streak = 0;
+        const today = new Date();
+        for (let i = 0; i < 7; i++) {
+          const checkDate = new Date(today);
+          checkDate.setDate(today.getDate() - i);
+          const dateStr = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
+          const hasGoodDay = history.some((e) => {
+            const d = new Date(e.timestamp * 1000);
+            return (
+              `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` === dateStr &&
+              e.score < 40
+            );
+          });
+          if (hasGoodDay) streak++;
+          else break;
+        }
+
+        setWeeklyStats({ goodDays, breaksHelped, streak });
+      } catch (error) {
+        console.error("Failed to fetch insights:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInsights();
+  }, [userId]);
+
+  if (loading) {
+    return (
+      <div className="p-8 space-y-8 max-w-6xl mx-auto" style={{ background: "#0a0a0f", minHeight: "100vh" }}>
+        <div className="h-40 flex items-center justify-center">
+          <div className="text-sm animate-pulse" style={{ color: "#857F75" }}>
+            Analyzing your patterns...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-8 space-y-8 max-w-6xl mx-auto">
+    <div className="p-8 space-y-8 max-w-6xl mx-auto" style={{ background: "#0a0a0f", minHeight: "100vh" }}>
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">Insights</h1>
-        <p className="text-sm text-muted mt-1.5">Understand what drives your stress scores</p>
-      </div>
-
-      {/* Model Performance Metrics */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <h3 className="text-lg font-medium mb-5 text-white">Model performance</h3>
-        {loading ? (
-          <div className="h-40 flex items-center justify-center">
-            <div className="text-sm text-muted animate-pulse">Loading metrics...</div>
-          </div>
-        ) : metrics ? (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <MetricCard label="Accuracy" value={metrics.accuracy} unit="%" color="#22c55e" />
-              <MetricCard label="Precision (macro)" value={metrics.precision} unit="%" color="#3b82f6" />
-              <MetricCard label="Recall (macro)" value={metrics.recall} unit="%" color="#d97706" />
-              <MetricCard label="F1 Score (macro)" value={metrics.f1} unit="%" color="#a78bfa" />
-            </div>
-            <h4 className="text-sm font-medium mb-3 text-muted">Confusion matrix</h4>
-            <ConfusionMatrix matrix={metrics.confusion_matrix} labels={metrics.labels} />
-            <p className="text-xs text-muted mt-4">
-              Evaluated on 600 synthetic samples generated from the same distribution as training data.
-              Diagonal cells (green) = correct predictions. Off-diagonal cells (red) = misclassifications.
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-muted">Failed to load model metrics.</p>
-        )}
-      </div>
-
-      {/* Feature Importance */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <h3 className="text-lg font-medium mb-5 text-white">Top stress indicators</h3>
-        <div className="space-y-3">
-          {[
-            { name: "Session fragmentation", pct: 35.6, desc: "How scattered your work sessions are" },
-            { name: "Rage click count", pct: 27.6, desc: "Rapid frustrated clicking detected" },
-            { name: "Switch entropy", pct: 12.7, desc: "Randomness of app/tab switching" },
-            { name: "Mouse speed std", pct: 4.6, desc: "Inconsistency of mouse movements" },
-            { name: "Scroll velocity std", pct: 4.2, desc: "Erratic scrolling patterns" },
-            { name: "Direction change rate", pct: 3.7, desc: "Cursor indecision or hesitation" },
-            { name: "Rhythm entropy", pct: 3.7, desc: "Chaos in typing rhythm" },
-          ].map((f, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-44 text-sm text-white font-medium">{f.name}</div>
-              <div className="flex-1 h-3 bg-surface-hover rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-accent/80 rounded-full transition-all duration-500"
-                  style={{ width: `${f.pct * 100 / 35.6}%` }}
-                />
-              </div>
-              <div className="w-12 text-right text-sm text-muted tabular-nums">{f.pct}%</div>
-              <div className="w-60 text-xs text-muted">{f.desc}</div>
-            </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted mt-5">
-          Our 3 novel features (session fragmentation, rage clicks, switch entropy) account for 75.9% of model decisions.
-          Traditional keystroke features (hold/flight times) contribute only ~2%.
+        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: "#F2EFE9" }}>
+          Your Patterns
+        </h1>
+        <p className="text-sm mt-1.5" style={{ color: "#857F75" }}>
+          Personal insights based on your unique rhythm
         </p>
       </div>
 
-      {/* Research Context */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <h3 className="text-lg font-medium mb-5 text-white">Research benchmarks</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">Universal model (no calibration)</div>
-            <div className="text-2xl font-semibold tabular-nums text-mild mt-2">F1: 0.25 – 0.40</div>
-            <div className="text-xs text-muted mt-1.5">Naegelin et al. 2025, 36 employees, 8-week field study</div>
-          </div>
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">With per-user calibration (50+ samples)</div>
-            <div className="text-2xl font-semibold tabular-nums text-neutral mt-2">F1: 0.55 – 0.70</div>
-            <div className="text-xs text-muted mt-1.5">Estimated from Pepa et al. 2021 + personalization</div>
-          </div>
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">Lab study best (ETH Zurich 2023)</div>
-            <div className="text-2xl font-semibold tabular-nums text-accent-light mt-2">F1: 0.625</div>
-            <div className="text-xs text-muted mt-1.5">90 participants, simulated office, gradient boosting</div>
-          </div>
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">In-the-wild (Pepa et al. 2021)</div>
-            <div className="text-2xl font-semibold tabular-nums text-accent-light mt-2">76%</div>
-            <div className="text-xs text-muted mt-1.5">62 users, keyboard data, 3-class stress</div>
-          </div>
+      {/* Weekly Wins */}
+      <div className="rounded-lg p-6" style={{ background: "#141420", border: "1px solid #1c1c2e" }}>
+        <WeeklyWins stats={weeklyStats} />
+      </div>
+
+      {/* Best Hours + Day Pattern */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-lg p-6" style={{ background: "#141420", border: "1px solid #1c1c2e" }}>
+          <BestHoursChart data={hourlyData} />
+        </div>
+        <div className="rounded-lg p-6" style={{ background: "#141420", border: "1px solid #1c1c2e" }}>
+          <DayOfWeekChart data={dayOfWeekData} />
         </div>
       </div>
 
-      {/* How It Works */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <h3 className="text-lg font-medium mb-5 text-white">How MindPulse works</h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
-          {[
-            { step: "1", title: "Collect", desc: "Capture keyboard timing, mouse movements, app switches — never what you type" },
-            { step: "2", title: "Extract", desc: "23 behavioral features per 5-minute window using sliding window analysis" },
-            { step: "3", title: "Predict", desc: "XGBoost classifier trained on real behavioral data, normalized per-user" },
-            { step: "4", title: "Insight", desc: "Stress score 0-100 with human-readable explanations of why" },
-          ].map((s) => (
-            <div key={s.step} className="p-4 rounded-lg bg-surface-hover">
-              <div className="text-3xl font-bold text-accent/70 mb-2 tabular-nums">{s.step}</div>
-              <div className="text-sm font-medium text-white mb-1.5">{s.title}</div>
-              <div className="text-xs text-muted">{s.desc}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Why Alert Fired */}
-      <div className="rounded-lg border border-border bg-surface p-6">
-        <h3 className="text-lg font-medium mb-5 text-white">Alert status</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">Current alert state</div>
-            <div className="text-xl font-semibold mt-2 tabular-nums">{interventionSnapshot?.alert_state ?? "NORMAL"}</div>
-          </div>
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">Recent trend</div>
-            <div className="text-xl font-semibold mt-2 tabular-nums">{interventionSnapshot?.trend ?? "steady"}</div>
-          </div>
-          <div className="p-4 rounded-lg bg-surface-hover">
-            <div className="text-sm text-muted font-medium">Recovery score</div>
-            <div className="text-xl font-semibold mt-2 tabular-nums text-neutral">
-              {interventionSnapshot?.recovery_score ? `+${interventionSnapshot.recovery_score.toFixed(1)}` : "0.0"}
-            </div>
-          </div>
-        </div>
-        {interventionSnapshot?.intervention && (
-          <div className="mt-4 p-4 rounded-lg bg-accent/[0.04] border border-accent/20">
-            <div className="text-sm font-medium mb-2 text-white">{interventionSnapshot.intervention.title}</div>
-            <ul className="space-y-1 text-xs text-muted">
-              {interventionSnapshot.intervention.rationale.map((reason, i) => (
-                <li key={i}>• {reason}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+      {/* Break Effectiveness */}
+      <div className="rounded-lg p-6" style={{ background: "#141420", border: "1px solid #1c1c2e" }}>
+        <BreakEffectivenessChart data={breakEffectiveness} />
       </div>
     </div>
   );

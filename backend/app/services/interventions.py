@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from app.services import history
 
@@ -18,6 +19,8 @@ class UserInterventionState:
     active_started_at: float = 0.0
     last_state: str = "NORMAL"
     last_recommendation: dict | None = field(default=None)
+    scheduled_breaks: list[dict] = field(default_factory=list)
+    wind_down_shown_today: str = ""
 
 
 class InterventionEngine:
@@ -47,7 +50,9 @@ class InterventionEngine:
         if len(scores) < 6:
             return "steady"
         first = sum(scores[: len(scores) // 2]) / max(1, len(scores) // 2)
-        second = sum(scores[len(scores) // 2 :]) / max(1, len(scores) - len(scores) // 2)
+        second = sum(scores[len(scores) // 2 :]) / max(
+            1, len(scores) - len(scores) // 2
+        )
         delta = second - first
         if delta > 6:
             return "rising"
@@ -62,7 +67,9 @@ class InterventionEngine:
         if contrib.get("S_switching", 0) >= 60:
             reasons.append("High context-switch load detected")
         if contrib.get("S_keyboard", 0) >= 60:
-            reasons.append("Keyboard rhythm and error signals indicate cognitive strain")
+            reasons.append(
+                "Keyboard rhythm and error signals indicate cognitive strain"
+            )
         if contrib.get("S_mouse", 0) >= 60:
             reasons.append("Mouse activity pattern suggests restlessness")
         if result.get("rage_click_count", 0) >= 3:
@@ -71,9 +78,13 @@ class InterventionEngine:
             reasons.append("Error rate is elevated")
         for insight in (result.get("insights", []) or [])[:1]:
             reasons.append(insight)
-        return reasons[:3] or ["Sustained stress signals detected across multiple features"]
+        return reasons[:3] or [
+            "Sustained stress signals detected across multiple features"
+        ]
 
-    def _recommendation(self, user_id: str, result: dict, severity: str, trend: str) -> dict:
+    def _recommendation(
+        self, user_id: str, result: dict, severity: str, trend: str
+    ) -> dict:
         effectiveness = history.intervention_effectiveness(user_id)
         candidates = [
             {
@@ -219,10 +230,15 @@ class InterventionEngine:
                     trend=trend,
                 )
 
-        if recommendation is None and state.last_recommendation and alert_state in {
-            "EARLY_WARNING",
-            "BREAK_RECOMMENDED",
-        }:
+        if (
+            recommendation is None
+            and state.last_recommendation
+            and alert_state
+            in {
+                "EARLY_WARNING",
+                "BREAK_RECOMMENDED",
+            }
+        ):
             recommendation = state.last_recommendation
         if recommendation:
             state.last_recommendation = recommendation
@@ -232,11 +248,15 @@ class InterventionEngine:
             "alert_state": alert_state,
             "intervention": recommendation,
             "trend": trend,
-            "recovery_score": round(float(recovery_score), 1) if recovery_score > 0 else 0.0,
+            "recovery_score": round(float(recovery_score), 1)
+            if recovery_score > 0
+            else 0.0,
             "new_alert_triggered": new_alert_triggered,
         }
 
-    def apply_action(self, user_id: str, action: str, intervention_type: str = "", notes: str = "") -> dict:
+    def apply_action(
+        self, user_id: str, action: str, intervention_type: str = "", notes: str = ""
+    ) -> dict:
         state = self._user_state(user_id)
         latest = history.latest_point(user_id)
         score = float(latest.get("score", 0.0))
@@ -281,7 +301,11 @@ class InterventionEngine:
                 state.snooze_until = 0
                 state.last_alert_at = 0
         elif action in {"helped", "not_helped", "skipped"}:
-            recovery = max(0.0, state.active_start_score - score) if state.active_start_score else 0.0
+            recovery = (
+                max(0.0, state.active_start_score - score)
+                if state.active_start_score
+                else 0.0
+            )
             history.append_intervention_event(
                 user_id=user_id,
                 action=action,
@@ -318,6 +342,134 @@ class InterventionEngine:
             "last_state": state.last_state,
             "last_recommendation": state.last_recommendation,
         }
+
+    def detect_wind_down(self, user_id: str, result: dict) -> dict | None:
+        now = datetime.now()
+        hour = now.hour
+        today_str = now.strftime("%Y-%m-%d")
+        state = self._user_state(user_id)
+
+        if state.wind_down_shown_today == today_str:
+            return None
+
+        if hour < 21:
+            return None
+
+        score = float(result.get("score", 0.0))
+        level = str(result.get("level", "UNKNOWN"))
+
+        if score < 50 and level == "NEUTRAL":
+            return None
+
+        scores_last_hour = history.get_recent_scores(user_id, minutes=60)
+        if len(scores_last_hour) < 3:
+            return None
+
+        recent_avg = sum(scores_last_hour[-5:]) / min(5, len(scores_last_hour))
+        if recent_avg < 45:
+            return None
+
+        state.wind_down_shown_today = today_str
+
+        return {
+            "type": "wind_down",
+            "title": "Time to wind down?",
+            "message": f"It's {hour:02d}:{now.minute:02d} and your energy has been dipping for a while. "
+            f"Consider wrapping up for the day — tomorrow is a fresh start.",
+            "severity": "gentle",
+            "actions": [
+                {"label": "I'll wrap up soon", "action": "acknowledge"},
+                {"label": "I'm fine, keep going", "action": "dismiss"},
+            ],
+        }
+
+    def schedule_break(
+        self, user_id: str, break_time: str, intervention_type: str = "breathing_reset"
+    ) -> dict:
+        state = self._user_state(user_id)
+        try:
+            bt = datetime.fromisoformat(break_time)
+            if bt.timestamp() <= time.time():
+                return {
+                    "status": "error",
+                    "message": "Break time must be in the future",
+                }
+        except ValueError:
+            return {
+                "status": "error",
+                "message": "Invalid time format. Use ISO format (e.g. 2026-04-17T15:00:00)",
+            }
+
+        break_entry = {
+            "id": f"break_{int(time.time())}",
+            "scheduled_for": break_time,
+            "intervention_type": intervention_type,
+            "status": "scheduled",
+            "created_at": datetime.now().isoformat(),
+        }
+        state.scheduled_breaks.append(break_entry)
+
+        history.append_intervention_event(
+            user_id=user_id,
+            action="break_scheduled",
+            intervention_type=intervention_type,
+            alert_state="NORMAL",
+            score_before=0.0,
+            notes=f"Scheduled for {break_time}",
+        )
+
+        return {
+            "status": "ok",
+            "break": break_entry,
+            "total_scheduled": len(state.scheduled_breaks),
+        }
+
+    def get_scheduled_breaks(self, user_id: str) -> list[dict]:
+        state = self._user_state(user_id)
+        now = time.time()
+        active = [
+            b
+            for b in state.scheduled_breaks
+            if datetime.fromisoformat(b["scheduled_for"]).timestamp() > now - 3600
+        ]
+        state.scheduled_breaks = active
+        return active
+
+    def cancel_break(self, user_id: str, break_id: str) -> dict:
+        state = self._user_state(user_id)
+        before = len(state.scheduled_breaks)
+        state.scheduled_breaks = [
+            b for b in state.scheduled_breaks if b["id"] != break_id
+        ]
+        if len(state.scheduled_breaks) == before:
+            return {"status": "error", "message": "Break not found"}
+
+        history.append_intervention_event(
+            user_id=user_id,
+            action="break_cancelled",
+            intervention_type="",
+            alert_state="NORMAL",
+            score_before=0.0,
+            notes=f"Cancelled break {break_id}",
+        )
+
+        return {"status": "ok", "message": "Break cancelled"}
+
+    def check_due_breaks(self, user_id: str) -> dict | None:
+        state = self._user_state(user_id)
+        now = time.time()
+        for b in state.scheduled_breaks:
+            bt = datetime.fromisoformat(b["scheduled_for"]).timestamp()
+            if abs(now - bt) < 60 and b["status"] == "scheduled":
+                b["status"] = "due"
+                return {
+                    "type": "scheduled_break_due",
+                    "title": "Time for your scheduled break",
+                    "message": f"You scheduled a {b['intervention_type']} break now. Ready?",
+                    "break_id": b["id"],
+                    "intervention_type": b["intervention_type"],
+                }
+        return None
 
 
 intervention_engine = InterventionEngine()

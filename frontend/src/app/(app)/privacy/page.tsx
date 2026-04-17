@@ -1,6 +1,55 @@
 "use client";
 
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+
 export default function PrivacyPage() {
+  const { userId } = useAuth();
+  const [actionStatus, setActionStatus] = useState<string | null>(null);
+
+  const handlePause = async () => {
+    setActionStatus("pause");
+    try {
+      await api.reset(userId);
+      setActionStatus("paused");
+    } catch {
+      setActionStatus("error");
+    }
+  };
+
+  const handleExport = async () => {
+    setActionStatus("export");
+    try {
+      const history = await api.history(userId, 168);
+      const csv = [
+        "timestamp,score,level,typing_speed_wpm,error_rate",
+        ...history.map((h) => `${h.timestamp},${h.score},${h.level},${h.typing_speed_wpm},${h.error_rate}`),
+      ].join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mindpulse-data-${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setActionStatus("exported");
+    } catch {
+      setActionStatus("error");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Delete all your data? This cannot be undone.")) return;
+    setActionStatus("delete");
+    try {
+      await api.reset(userId);
+      setActionStatus("deleted");
+    } catch {
+      setActionStatus("error");
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 max-w-6xl mx-auto">
       <div>
@@ -14,7 +63,7 @@ export default function PrivacyPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
             { title: "Keyboard", items: ["Key press/release timestamps", "Key category (alpha/digit/special)", "Hold time, flight time", "Backspace count (not content)"] },
-            { title: "Mouse", items: ["Movement speed and direction", "Click timestamps", "Scroll velocity", "Rage click detection"] },
+            { title: "Mouse", items: ["Movement speed and direction", "Click timestamps", "Scroll velocity", "Quick click detection"] },
             { title: "Context", items: ["App switch timestamps", "Hashed app category", "Tab switch frequency", "Session duration"] },
           ].map((cat) => (
             <div key={cat.title} className="p-4 rounded-lg bg-surface border border-border/50">
@@ -66,13 +115,31 @@ export default function PrivacyPage() {
       {/* Data Control */}
       <div className="rounded-lg border border-border bg-surface p-6">
         <h3 className="text-lg font-medium mb-5 text-white">Your data controls</h3>
+        {actionStatus && (
+          <div className={`mb-4 p-3 rounded-md text-sm ${
+            actionStatus === "error" ? "bg-stressed/10 text-stressed" :
+            actionStatus === "deleted" || actionStatus === "paused" || actionStatus === "exported" ? "bg-neutral/10 text-neutral" :
+            "bg-accent/10 text-accent"
+          }`}>
+            {actionStatus === "pause" && "Pausing tracking..."}
+            {actionStatus === "paused" && "Tracking paused. All data cleared."}
+            {actionStatus === "export" && "Preparing your data..."}
+            {actionStatus === "exported" && "Data exported as CSV."}
+            {actionStatus === "delete" && "Deleting all data..."}
+            {actionStatus === "deleted" && "All data deleted."}
+            {actionStatus === "error" && "Something went wrong. Try again."}
+          </div>
+        )}
         <div className="space-y-4">
           <div className="flex items-center justify-between py-3 border-b border-border/50">
             <div>
               <div className="text-sm font-medium text-white">Pause tracking</div>
               <div className="text-xs text-muted mt-0.5">Temporarily stop all data collection</div>
             </div>
-            <button className="px-4 py-2 rounded-md border border-border text-sm font-medium hover:bg-surface-hover transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]">
+            <button
+              onClick={handlePause}
+              className="px-4 py-2 rounded-md border border-border text-sm font-medium hover:bg-surface-hover transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+            >
               Pause
             </button>
           </div>
@@ -81,7 +148,10 @@ export default function PrivacyPage() {
               <div className="text-sm font-medium text-white">Export my data</div>
               <div className="text-xs text-muted mt-0.5">Download all your data as CSV</div>
             </div>
-            <button className="px-4 py-2 rounded-md border border-border text-sm font-medium hover:bg-surface-hover transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]">
+            <button
+              onClick={handleExport}
+              className="px-4 py-2 rounded-md border border-border text-sm font-medium hover:bg-surface-hover transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+            >
               Export
             </button>
           </div>
@@ -90,7 +160,10 @@ export default function PrivacyPage() {
               <div className="text-sm font-medium text-white">Delete all data</div>
               <div className="text-xs text-muted mt-0.5">Permanently remove all stored data</div>
             </div>
-            <button className="px-4 py-2 rounded-md border border-stressed/30 text-stressed text-sm font-medium hover:bg-stressed/10 transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]">
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 rounded-md border border-stressed/30 text-stressed text-sm font-medium hover:bg-stressed/10 transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+            >
               Delete
             </button>
           </div>

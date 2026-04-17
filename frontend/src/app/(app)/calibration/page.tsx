@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
 import type { CalibrationStatus } from "@/lib/types";
 
 export default function CalibrationPage() {
+  const { userId } = useAuth();
   const [status, setStatus] = useState<CalibrationStatus | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.calibration().then((s) => {
+    api.calibration(userId).then((s) => {
       setStatus(s);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   return (
     <div className="p-8 space-y-8 max-w-6xl mx-auto">
