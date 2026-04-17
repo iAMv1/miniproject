@@ -1,53 +1,80 @@
-/** MindPulse — WebSocket Hook */
-
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { StressResult } from "@/lib/types";
 
-type ConnectionStatus = "connected" | "connecting" | "disconnected";
+type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
 interface UseStressStreamReturn {
   data: StressResult | null;
   history: StressResult[];
   status: ConnectionStatus;
-  send: (features: Record<string, number>, userId?: string) => void;
+  error: string | null;
 }
 
 export function useStressStream(): UseStressStreamReturn {
   const [data, setData] = useState<StressResult | null>(null);
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
+  const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const isMounted = useRef(false);
 
   const connect = useCallback(() => {
+    // Only run in browser
+    if (typeof window === "undefined") return;
+    
     const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
+    
     try {
       setStatus("connecting");
+      setError(null);
+      
       const ws = new WebSocket(url);
+      
       ws.onopen = () => {
+        if (!isMounted.current) return;
         reconnectAttemptsRef.current = 0;
         setStatus("connected");
+        setError(null);
       };
-      ws.onclose = () => {
+      
+      ws.onclose = (event) => {
+        if (!isMounted.current) return;
         setStatus("disconnected");
+        
+        // Don't reconnect if closed cleanly
+        if (event.wasClean) return;
+        
         reconnectAttemptsRef.current += 1;
         const jitter = Math.floor(Math.random() * 800);
-        const backoff = Math.min(
-          10000,
-          2000 + reconnectAttemptsRef.current * 500 + jitter,
-        );
-        reconnectTimer.current = setTimeout(connect, backoff);
+        const backoff = Math.min(10000, 2000 + reconnectAttemptsRef.current * 500 + jitter);
+        
+        reconnectTimer.current = setTimeout(() => {
+          if (isMounted.current) connect();
+        }, backoff);
       };
+      
+      ws.onerror = (err) => {
+        if (!isMounted.current) return;
+        setStatus("error");
+        setError("WebSocket connection failed");
+        console.error("[MindPulse WS] Connection error:", err);
+      };
+      
       ws.onmessage = (e) => {
+        if (!isMounted.current) return;
+        
         try {
           const msg = JSON.parse(e.data);
+          
           if (msg.type === "ping") {
             ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
             return;
           }
+          
           if (msg.type === "stress_update") {
             const result: StressResult = {
               score: msg.score,
@@ -78,30 +105,37 @@ export function useStressStream(): UseStressStreamReturn {
             setData(null);
             setHistory([]);
           }
-        } catch {}
+        } catch (err) {
+          console.error("[MindPulse WS] Message parse error:", err);
+        }
       };
-      ws.onerror = () => ws.close();
+      
       wsRef.current = ws;
-    } catch {
-      setStatus("disconnected");
+    } catch (err) {
+      setStatus("error");
+      setError("Failed to create WebSocket connection");
+      console.error("[MindPulse WS] Setup error:", err);
     }
   }, []);
 
   useEffect(() => {
-    connect();
+    isMounted.current = true;
+    
+    // Delay connection to avoid SSR issues
+    const timer = setTimeout(() => {
+      if (isMounted.current) connect();
+    }, 100);
+    
     return () => {
+      isMounted.current = false;
       if (reconnectTimer.current) {
         clearTimeout(reconnectTimer.current);
       }
-      wsRef.current?.close();
+      if (wsRef.current) {
+        wsRef.current.close(1000, "Component unmounting");
+      }
     };
   }, [connect]);
 
-  const send = useCallback((features: Record<string, number>, userId: string = "default") => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "features", features, user_id: userId }));
-    }
-  }, []);
-
-  return { data, history, status, send };
+  return { data, history, status, error };
 }

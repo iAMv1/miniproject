@@ -1,9 +1,10 @@
 """MindPulse Backend — Inference Service."""
 
 from __future__ import annotations
+import logging
 import numpy as np
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from app.core.config import (
     FEATURE_NAMES,
@@ -13,9 +14,11 @@ from app.core.config import (
     MODEL_SCORE_WEIGHT,
 )
 
+logger = logging.getLogger("mindpulse.inference")
+
 
 class InferenceEngine:
-    """Wraps XGBoost model + DualNormalizer for stress prediction."""
+    """Wraps XGBoost model + DualNormalizer for stress prediction with SHAP explainability."""
 
     def __init__(self):
         self._model = None
@@ -23,6 +26,7 @@ class InferenceEngine:
         self._normalizer = None
         self._baselines = {}
         self._ready = False
+        self._shap_explainer = None
 
     @staticmethod
     def _sigmoid(x: float) -> float:
@@ -48,7 +52,9 @@ class InferenceEngine:
         try:
             if baseline is not None and baseline.is_calibrated():
                 z_user = baseline.compute_deviations(raw, hour)
-                z_values = {name: float(z_user[i]) for i, name in enumerate(FEATURE_NAMES)}
+                z_values = {
+                    name: float(z_user[i]) for i, name in enumerate(FEATURE_NAMES)
+                }
             elif self._stats is not None:
                 mean = np.asarray(self._stats["mean"], dtype=np.float32)
                 std = np.asarray(self._stats["std"], dtype=np.float32) + 1e-8
@@ -130,9 +136,18 @@ class InferenceEngine:
             )
             self._normalizer = DualNormalizer(self._stats)
             self._ready = True
-            print("[MindPulse] Model loaded")
+            logger.info("Model loaded successfully")
+
+            try:
+                import shap
+
+                self._shap_explainer = shap.TreeExplainer(self._model)
+                logger.info("SHAP explainer initialized")
+            except Exception as e:
+                logger.warning(f"SHAP explainer unavailable: {e}")
+                self._shap_explainer = None
         except Exception as e:
-            print(f"[MindPulse] Model load failed: {e}")
+            logger.error(f"Model load failed: {e}")
             self._ready = False
 
     def _get_baseline(self, user_id: str):
@@ -152,6 +167,44 @@ class InferenceEngine:
     def is_ready(self) -> bool:
         return self._ready and self._model is not None
 
+    def _compute_shap_values(self, z: np.ndarray) -> Optional[dict]:
+        """Compute SHAP values for feature-level explainability."""
+        if self._shap_explainer is None:
+            return None
+        try:
+            shap_values = self._shap_explainer.shap_values(z.reshape(1, -1))
+            # Handle multi-class output (list of arrays) or single array
+            if isinstance(shap_values, list):
+                # For multi-class, use STRESSED class (index 2)
+                shap_values = (
+                    shap_values[2] if len(shap_values) > 2 else shap_values[-1]
+                )
+
+            # Ensure shap_values is a 2D array
+            if shap_values.ndim == 1:
+                shap_values = shap_values.reshape(1, -1)
+
+            shap_dict = {}
+            num_features = len(FEATURE_NAMES)
+
+            for i, name in enumerate(FEATURE_NAMES):
+                # For dual normalization, we have 2x features (global + user)
+                # Take whichever index exists
+                idx = i if i < shap_values.shape[1] else i % num_features
+                if idx < shap_values.shape[1]:
+                    val = float(shap_values[0, idx])
+                    if abs(val) > 0.001:
+                        shap_dict[name] = round(val, 4)
+
+            return (
+                dict(sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True))
+                if shap_dict
+                else None
+            )
+        except Exception as e:
+            logger.warning(f"SHAP computation failed: {e}")
+            return None
+
     def predict(self, features_dict: dict, user_id: str = "default") -> dict:
         """Run inference and return structured result."""
         missing = [f for f in FEATURE_NAMES if f not in features_dict]
@@ -163,7 +216,6 @@ class InferenceEngine:
                 message=f"Missing required features: {preview}"
             )
 
-        # Convert dict to numpy array in correct order
         raw = np.array([features_dict[f] for f in FEATURE_NAMES], dtype=np.float32)
 
         hour = int(features_dict.get("hour_of_day", 12))
@@ -172,6 +224,8 @@ class InferenceEngine:
             features_dict, raw, baseline, hour
         )
 
+        shap_values = None
+
         if not self.is_ready:
             model_score = 0.0
             final_score = equation_score
@@ -179,28 +233,27 @@ class InferenceEngine:
             confidence = 0.45
             probs = np.array([0.33, 0.33, 0.34], dtype=np.float32)
         else:
-            # Dual normalization: global z-score + per-user circadian deviation
             z = self._normalizer.transform(raw, hour, baseline)
 
-            # Predict
             probs = self._model.predict_proba(z.reshape(1, -1))[0]
             confidence = float(np.max(probs))
             model_score = float(probs[0] * 5.0 + probs[1] * 55.0 + probs[2] * 100.0)
             final_score = (
-                MODEL_SCORE_WEIGHT * model_score + (1.0 - MODEL_SCORE_WEIGHT) * equation_score
+                MODEL_SCORE_WEIGHT * model_score
+                + (1.0 - MODEL_SCORE_WEIGHT) * equation_score
             )
             final_score = self._clamp_score(final_score)
             level = self._level_from_score(final_score)
 
+            shap_values = self._compute_shap_values(z)
+
         timestamp = time.time()
 
-        # Update personal baseline
         if baseline:
             baseline.update(raw, hour)
             baseline.save_session_score(timestamp * 1000.0, final_score, level)
 
-        # Generate insights
-        insights = self._generate_insights(features_dict, level)
+        insights = self._generate_insights(features_dict, level, shap_values)
 
         return {
             "score": round(final_score, 1),
@@ -211,14 +264,18 @@ class InferenceEngine:
             "confidence": round(confidence, 3),
             "probabilities": {l: round(float(p), 3) for l, p in zip(LABELS, probs)},
             "feature_contributions": contributions,
+            "shap_values": shap_values,
             "insights": insights,
             "timestamp": timestamp,
-            # Raw features for live dashboard tiles
-            "typing_speed_wpm": round(float(features_dict.get("typing_speed_wpm", 0)), 1),
+            "typing_speed_wpm": round(
+                float(features_dict.get("typing_speed_wpm", 0)), 1
+            ),
             "rage_click_count": int(features_dict.get("rage_click_count", 0)),
             "error_rate": round(float(features_dict.get("error_rate", 0)), 3),
             "click_count": int(features_dict.get("click_count", 0)),
-            "mouse_speed_mean": round(float(features_dict.get("mouse_speed_mean", 0)), 1),
+            "mouse_speed_mean": round(
+                float(features_dict.get("mouse_speed_mean", 0)), 1
+            ),
             "mouse_reentry_count": round(
                 float(features_dict.get("mouse_reentry_count", 0)), 1
             ),
@@ -227,9 +284,25 @@ class InferenceEngine:
             ),
         }
 
-    def _generate_insights(self, features: dict, level: str) -> List[str]:
-        """Generate human-readable stress insights from feature values."""
+    def _generate_insights(
+        self, features: dict, level: str, shap_values: Optional[dict] = None
+    ) -> List[str]:
+        """Generate human-readable stress insights from feature values and SHAP."""
         insights = []
+
+        if shap_values:
+            top_features = list(shap_values.items())[:3]
+            for feat_name, impact in top_features:
+                direction = "increasing" if impact > 0 else "decreasing"
+                readable = feat_name.replace("_", " ")
+                if impact > 0:
+                    insights.append(
+                        f"{readable.capitalize()} is {direction} stress likelihood"
+                    )
+                else:
+                    insights.append(
+                        f"{readable.capitalize()} is {direction} stress likelihood"
+                    )
 
         if features.get("rage_click_count", 0) > 2:
             insights.append(
@@ -250,14 +323,25 @@ class InferenceEngine:
         if features.get("mouse_speed_std", 0) > 150:
             insights.append("Inconsistent mouse movements — possible restlessness")
         if features.get("mouse_reentry_count", 0) > 2:
-            insights.append("Frequent mouse re-entry after switches — possible task thrashing")
+            insights.append(
+                "Frequent mouse re-entry after switches — possible task thrashing"
+            )
 
         if not insights and level == "STRESSED":
             insights.append("Multiple behavioral signals indicate elevated stress")
 
-        return insights[:3]  # Max 3 insights
+        seen = set()
+        unique_insights = []
+        for i in insights:
+            if i not in seen:
+                seen.add(i)
+                unique_insights.append(i)
 
-    def _fallback_result(self, message: str = "Model not loaded — check server logs") -> dict:
+        return unique_insights[:3]
+
+    def _fallback_result(
+        self, message: str = "Model not loaded — check server logs"
+    ) -> dict:
         """Return when model is not loaded."""
         return {
             "score": 0.0,
@@ -268,6 +352,7 @@ class InferenceEngine:
             "confidence": 0.0,
             "probabilities": {"NEUTRAL": 0.33, "MILD": 0.33, "STRESSED": 0.34},
             "feature_contributions": {},
+            "shap_values": None,
             "insights": [message],
             "timestamp": time.time(),
             "typing_speed_wpm": 0.0,
@@ -280,5 +365,4 @@ class InferenceEngine:
         }
 
 
-# Singleton
 engine = InferenceEngine()

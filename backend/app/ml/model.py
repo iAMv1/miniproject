@@ -400,9 +400,8 @@ class PersonalBaseline:
         )
 
         min_samples = min(samples_per_hour.values()) if samples_per_hour else 0
-        is_calibrated = (
-            hours_covered >= int(min_hours_covered)
-            and min_samples >= max(5, int(target_samples_per_hour * 0.25))
+        is_calibrated = hours_covered >= int(min_hours_covered) and min_samples >= max(
+            5, int(target_samples_per_hour * 0.25)
         )
 
         return {
@@ -468,10 +467,8 @@ def _load_real_dataset_from_csv(
     valid = np.isin(y, [0, 1, 2])
     X, y = X[valid], y[valid]
 
-    if len(X) < 100:
-        raise ValueError(
-            "Not enough valid rows in real dataset after filtering (<100)."
-        )
+    if len(X) < 10:
+        raise ValueError("Not enough valid rows in real dataset after filtering (<10).")
 
     return X, y
 
@@ -485,18 +482,20 @@ def _build_xgb_classifier() -> xgb.XGBClassifier:
     return xgb.XGBClassifier(
         objective="multi:softprob",
         num_class=3,
-        max_depth=6,
-        learning_rate=0.08,
-        n_estimators=350,
-        subsample=0.9,
-        colsample_bytree=0.9,
-        min_child_weight=3,
-        gamma=0.05,
-        reg_alpha=0.01,
-        reg_lambda=1.0,
+        max_depth=5,
+        learning_rate=0.05,
+        n_estimators=500,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        min_child_weight=5,
+        gamma=0.1,
+        reg_alpha=0.05,
+        reg_lambda=1.5,
+        scale_pos_weight=1.0,
         eval_metric="mlogloss",
         random_state=42,
         tree_method="hist",
+        early_stopping_rounds=30,
     )
 
 

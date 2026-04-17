@@ -3,7 +3,7 @@
 from __future__ import annotations
 import time
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.schemas.stress import (
     InferenceRequest,
     InferenceResponse,
@@ -110,7 +110,8 @@ async def get_recommendation(user_id: str = "default"):
         "alert_state": eval_result["alert_state"],
         "trend": eval_result["trend"],
         "recovery_score": eval_result["recovery_score"],
-        "intervention": eval_result["intervention"] or snapshot.get("last_recommendation"),
+        "intervention": eval_result["intervention"]
+        or snapshot.get("last_recommendation"),
         "active_intervention": snapshot.get("active_intervention"),
         "active_start_score": snapshot.get("active_start_score"),
     }
@@ -130,6 +131,41 @@ async def intervention_action(req: InterventionActionRequest):
 async def intervention_history(user_id: str = "default", hours: int = 168):
     events = history.get_intervention_events(user_id, hours)
     return [InterventionEvent(**event) for event in events]
+
+
+@router.get("/interventions/wind-down")
+async def check_wind_down(user_id: str = "default"):
+    latest = history.latest_point(user_id)
+    wind_down = intervention_engine.detect_wind_down(user_id, latest)
+    return {"wind_down": wind_down}
+
+
+@router.post("/interventions/schedule-break")
+async def schedule_break(
+    user_id: str = Query("default"),
+    break_time: str = Query(...),
+    intervention_type: str = Query("breathing_reset"),
+):
+    return intervention_engine.schedule_break(user_id, break_time, intervention_type)
+
+
+@router.get("/interventions/scheduled-breaks")
+async def get_scheduled_breaks(user_id: str = "default"):
+    return {"breaks": intervention_engine.get_scheduled_breaks(user_id)}
+
+
+@router.post("/interventions/cancel-break")
+async def cancel_break(
+    user_id: str = Query("default"),
+    break_id: str = Query(...),
+):
+    return intervention_engine.cancel_break(user_id, break_id)
+
+
+@router.get("/interventions/check-due-breaks")
+async def check_due_breaks(user_id: str = "default"):
+    due = intervention_engine.check_due_breaks(user_id)
+    return {"due_break": due}
 
 
 @router.get("/calibration/{user_id}", response_model=CalibrationStatus)
@@ -179,7 +215,10 @@ async def model_metrics():
 
     manifest_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
-        "..", "ml", "artifacts", "artifacts_manifest.json"
+        "..",
+        "ml",
+        "artifacts",
+        "artifacts_manifest.json",
     )
     manifest_path = os.path.normpath(manifest_path)
 
@@ -193,7 +232,10 @@ async def model_metrics():
     # Generate a fresh confusion matrix from the loaded model
     confusion_matrix = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
     try:
-        from app.ml.synthetic_data import generate_synthetic_dataset, compute_global_stats
+        from app.ml.synthetic_data import (
+            generate_synthetic_dataset,
+            compute_global_stats,
+        )
         from app.ml.model import DualNormalizer, load_model
         from app.ml.feature_extractor import FEATURE_NAMES
         from sklearn.metrics import confusion_matrix as cm_func
@@ -203,10 +245,15 @@ async def model_metrics():
         hour_idx = FEATURE_NAMES.index("hour_of_day")
 
         X_raw, y_true, _ = generate_synthetic_dataset(n_samples=600)
-        X_norm = np.array([
-            normalizer.transform(X_raw[i], hour=int(X_raw[i, hour_idx]), baseline=None)
-            for i in range(len(X_raw))
-        ], dtype=np.float32)
+        X_norm = np.array(
+            [
+                normalizer.transform(
+                    X_raw[i], hour=int(X_raw[i, hour_idx]), baseline=None
+                )
+                for i in range(len(X_raw))
+            ],
+            dtype=np.float32,
+        )
 
         y_pred = model.predict(X_norm)
         matrix = cm_func(y_true, y_pred, labels=[0, 1, 2])
@@ -261,16 +308,23 @@ async def websocket_stress(ws: WebSocket):
                         }
                     )
                     history.append(uid, result)
-                    if intervention_state["new_alert_triggered"] and intervention_state["intervention"]:
+                    if (
+                        intervention_state["new_alert_triggered"]
+                        and intervention_state["intervention"]
+                    ):
                         history.append_intervention_event(
                             user_id=uid,
                             action="recommended",
-                            intervention_type=intervention_state["intervention"]["intervention_type"],
+                            intervention_type=intervention_state["intervention"][
+                                "intervention_type"
+                            ],
                             alert_state=intervention_state["alert_state"],
                             score_before=float(result.get("score", 0.0)),
                             notes="auto-generated recommendation",
                         )
-                    await ws.send_json({"type": "stress_update", **result, "user_id": uid})
+                    await ws.send_json(
+                        {"type": "stress_update", **result, "user_id": uid}
+                    )
             except (json.JSONDecodeError, KeyError):
                 pass
     except WebSocketDisconnect:
