@@ -371,9 +371,9 @@ async def inference_sse_stream(
                 event_data = {
                     "type": "stress_update",
                     "timestamp": datetime.now().isoformat(),
-                    "score": result.score,
-                    "level": result.level,
-                    "confidence": result.confidence,
+                    "score": result.get("score", 50),
+                    "level": result.get("level", "NEUTRAL"),
+                    "confidence": result.get("confidence", 0.0),
                     "features": {
                         "typing_speed_wpm": features["typing_speed_wpm"],
                         "error_rate": features["error_rate"],
