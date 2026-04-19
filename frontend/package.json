@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "start:all": "npm run start:backend && npm run start",
+    "start:all": "concurrently \"npm run start:backend\" \"npm run start\"",
     "start:backend": "cd ../backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000",
     "test": "python -m pytest",
     "test:integration": "python test_endpoints.py",
@@ -31,6 +31,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
