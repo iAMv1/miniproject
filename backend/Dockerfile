@@ -26,7 +26,6 @@ ENV PATH=/root/.local/bin:$PATH
 
 # Copy application code
 COPY app/ ./app/
-COPY run_client.py .
 
 # Create artifacts directory
 RUN mkdir -p app/ml/artifacts
@@ -36,7 +35,7 @@ EXPOSE 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')" || exit 1
+    CMD python -c "import os, urllib.request; port = os.environ.get('PORT', '5000'); urllib.request.urlopen(f'http://localhost:{port}/api/v1/health')" || exit 1
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
