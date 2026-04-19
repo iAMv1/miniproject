@@ -24,6 +24,19 @@ export function useAuth() {
       setLoading(false);
       return;
     }
+    if (token === "demo") {
+      const demoUser = {
+        id: 0,
+        email: "demo@mindpulse.app",
+        username: "demo",
+        display_name: "Demo User",
+        created_at: new Date().toISOString(),
+        last_login: new Date().toISOString(),
+      };
+      setUser(demoUser);
+      setLoading(false);
+      return;
+    }
     api.me()
       .then((u) => {
         setUser(u);

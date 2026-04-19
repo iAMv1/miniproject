@@ -1,0 +1,27 @@
+"""Test inference engine."""
+from app.services.inference import engine
+
+engine.load()
+print(f"Engine ready: {engine.is_ready}")
+
+features = {
+    "hold_time_mean": 0.12, "hold_time_std": 0.03, "hold_time_median": 0.11,
+    "flight_time_mean": 0.08, "flight_time_std": 0.02,
+    "typing_speed_wpm": 60.0, "error_rate": 0.05,
+    "pause_frequency": 2.0, "pause_duration_mean": 1.5,
+    "burst_length_mean": 3.0, "rhythm_entropy": 2.5,
+    "mouse_speed_mean": 200.0, "mouse_speed_std": 50.0,
+    "direction_change_rate": 0.3, "click_count": 10, "rage_click_count": 1,
+    "scroll_velocity_std": 30.0, "tab_switch_freq": 0, "switch_entropy": 0,
+    "session_fragmentation": 0, "hour_of_day": 14.5, "day_of_week": 3,
+    "session_duration_min": 5.0,
+    "mouse_reentry_count": 0, "mouse_reentry_latency_ms": 0,
+}
+
+result = engine.predict(features, "test_user")
+
+print(f"Score: {result['score']}, Level: {result['level']}")
+print(f"WPM: {result.get('typing_speed_wpm')}")
+print(f"Mouse: {result.get('mouse_speed_mean')}")
+print(f"Key check: typing_speed_wpm={('typing_speed_wpm' in result)}, rage_click_count={('rage_click_count' in result)}, mouse_speed_mean={('mouse_speed_mean' in result)}")
+print(f"All output keys: {sorted(result.keys())}")
