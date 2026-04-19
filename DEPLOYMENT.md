@@ -34,6 +34,7 @@ This project is set up to deploy:
      - `NEXTAUTH_SECRET`
      - `NEXT_PUBLIC_API_URL=https://<railway-backend-domain>/api/v1`
      - `NEXT_PUBLIC_WS_URL=wss://<railway-backend-domain>/api/v1/ws/stress`
+       - This path matches the current frontend stress stream hook. If you change backend WebSocket routing, update this value accordingly.
    - Optional:
      - `GOOGLE_CLIENT_ID`
      - `GOOGLE_CLIENT_SECRET`
