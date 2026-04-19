@@ -47,7 +47,7 @@ try {
     Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "*next*" -or $_.CommandLine -like "*next*dev*" } | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
 
-    if ($FrontendOnly -or (-not $BackendOnly -and -not $FrontendOnly)) {
+    if (-not $FrontendOnly) {
         # Start backend first
         if (-not (Test-Port -Port 5000)) {
             $running += Start-Backend

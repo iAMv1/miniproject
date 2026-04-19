@@ -13,15 +13,9 @@ from dotenv import load_dotenv
 # Load .env file if present
 load_dotenv()
 
-# Supabase configuration - MindPulse project
-SUPABASE_URL = os.environ.get(
-    "SUPABASE_URL", 
-    "https://ihaaqumdgdgsvyaiyggs.supabase.co"
-)
-SUPABASE_ANON_KEY = os.environ.get(
-    "SUPABASE_ANON_KEY", 
-    "sb_publishable_WVhNDQK5BNi8xDGxI-cSXw_HGS-Ztto"
-)
+# Supabase configuration - set via environment variables
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 
 # Service role key for admin operations (bypasses RLS)
 # This should be set in environment variables, not hardcoded

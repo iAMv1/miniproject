@@ -426,7 +426,7 @@ function CorrelationMatrixHeatmap({
         <span className="text-xs" style={{ color: "#857F75" }}>
           Negative
         </span>
-        <div className="flex-1 h-2 rounded" style={{ background: "linear-gradient(to right, rgb(300, 60, 60), #2a2a3d, rgb(34, 220, 94))" }} />
+        <div className="flex-1 h-2 rounded" style={{ background: "linear-gradient(to right, rgb(255, 60, 60), #2a2a3d, rgb(34, 220, 94))" }} />
         <span className="text-xs" style={{ color: "#857F75" }}>
           Positive
         </span>

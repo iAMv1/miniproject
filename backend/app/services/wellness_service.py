@@ -70,6 +70,7 @@ class WellnessService:
         
         result = client.table("wellness_insights")\
             .select("*")\
+            .eq("user_id", user_id)\
             .order("generated_at", desc=True)\
             .limit(limit)\
             .execute()
