@@ -36,13 +36,16 @@ export function chatStream(
   
   const url = `${BASE}/chat/stream?${params.toString()}`;
   const abortController = new AbortController();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
   
   const readerPromise = fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: token ? `Bearer ${token}` : "",
-    },
+    headers,
     body: JSON.stringify({ message }),
     signal: abortController.signal,
   }).then(async (res) => {
