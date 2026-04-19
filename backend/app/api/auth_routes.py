@@ -150,7 +150,7 @@ async def google_callback(code: str = Query(...)):
 
     callback_url = (
         f"{FRONTEND_CALLBACK_URL}"
-        f"?token={urllib.parse.quote(jwt_token)}"
+        f"#token={urllib.parse.quote(jwt_token)}"
         f"&user={urllib.parse.quote(user_json)}"
     )
 
