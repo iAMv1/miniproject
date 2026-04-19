@@ -177,12 +177,13 @@ class ChatService:
     
     @staticmethod
     async def get_session_history(user_id: str, session_id: str) -> list[Dict[str, Any]]:
-        """Get all messages for a session."""
+        """Get all messages for a session owned by the given user."""
         client = get_supabase_admin()
         
         result = client.table("chat_messages")\
             .select("*")\
             .eq("session_id", session_id)\
+            .eq("user_id", user_id)\
             .order("created_at")\
             .execute()
         
@@ -195,6 +196,7 @@ class ChatService:
         
         result = client.table("chat_sessions")\
             .select("*")\
+            .eq("user_id", user_id)\
             .eq("is_active", True)\
             .order("updated_at", desc=True)\
             .limit(limit)\
@@ -210,6 +212,7 @@ class ChatService:
         client.table("chat_sessions")\
             .update({"title": title[:50], "updated_at": datetime.utcnow().isoformat()})\
             .eq("id", session_id)\
+            .eq("user_id", user_id)\
             .execute()
 
 

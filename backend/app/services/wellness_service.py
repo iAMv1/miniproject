@@ -43,6 +43,7 @@ class WellnessService:
         
         result = client.table("wellness_checkins")\
             .select("*")\
+            .eq("user_id", user_id)\
             .gte("check_date", since)\
             .order("check_date", desc=True)\
             .execute()
@@ -87,7 +88,7 @@ class WellnessService:
         if not checkins:
             return {
                 "avg_energy": None,
-                "sleep_quality_avg": None,
+                "avg_sleep": None,
                 "checkin_count": 0,
                 "insights": []
             }

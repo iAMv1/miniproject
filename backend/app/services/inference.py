@@ -243,7 +243,7 @@ class InferenceEngine:
 
     @property
     def is_ready(self) -> bool:
-        return self._ready and self._model is not None
+        return self._ready and (self._model is not None or self._ensemble is not None)
 
     def _compute_shap_values(self, z: np.ndarray) -> Optional[dict]:
         """Compute SHAP values for feature-level explainability."""

@@ -220,7 +220,7 @@ export default function HistoryPage() {
         <div className="rounded-xl border border-[#1c1c2e] bg-[#141420] p-5">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="w-3.5 h-3.5 text-[#dc2626]" />
-            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">Low Energy %</span>
+            <span className="text-[11px] text-[#857F75] font-medium uppercase tracking-wider">Stressed %</span>
           </div>
           <div className="text-2xl font-light text-[#dc2626] tabular-nums">{stats?.stressed_pct ?? 0}<span className="text-sm text-[#857F75]/40">%</span></div>
         </div>

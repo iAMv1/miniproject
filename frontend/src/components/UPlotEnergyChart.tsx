@@ -143,7 +143,7 @@ export default function UPlotEnergyChart({
   return (
     <div className={`relative ${className}`}>
       <div ref={containerRef} className="w-full" />
-      {peakHour && peakEnergy && (
+      {peakHour != null && peakEnergy != null && (
         <div className="absolute top-2 right-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#22c55e]/5 border border-[#22c55e]/20">
           <div className="w-2 h-2 rounded-full bg-[#22c55e]" />
           <span className="text-xs text-[#F2EFE9]/80">

@@ -2,8 +2,13 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { BASE } from "@/lib/api";
 
+const secret = process.env.NEXTAUTH_SECRET;
+if (!secret && process.env.NODE_ENV !== "development") {
+  throw new Error("NEXTAUTH_SECRET environment variable must be set in non-development environments.");
+}
+
 const handlerConfig = {
-  secret: process.env.NEXTAUTH_SECRET || "fallback-secret-dev-mode",
+  secret: secret || "fallback-secret-dev-mode-only",
   providers: [
     Credentials({
       credentials: {
