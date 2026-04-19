@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000/api/v1} NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET must be set} next build --no-lint",
+    "build": "node -e \"const {spawnSync}=require('child_process'); if(!process.env.NEXT_PUBLIC_API_URL){process.env.NEXT_PUBLIC_API_URL='http://localhost:5000/api/v1';} if(!process.env.NEXTAUTH_SECRET){console.error('NEXTAUTH_SECRET must be set'); process.exit(1);} const nextBin=require.resolve('next/dist/bin/next'); const result=spawnSync(process.execPath,[nextBin,'build','--no-lint'],{stdio:'inherit',env:process.env}); process.exit(result.status ?? 1);\"",
     "start": "next start",
     "start:all": "concurrently \"npm run start:backend\" \"npm run start\"",
     "start:backend": "cd ../backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000",
