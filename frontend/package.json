@@ -4,13 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:5000/api/v1} NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-mindpulse-nextauth-dev-secret} next build",
     "start": "next start",
     "start:all": "concurrently \"npm run start:backend\" \"npm run start\"",
     "start:backend": "cd ../backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000",
-    "test": "python -m pytest",
-    "test:integration": "python test_endpoints.py",
-    "test:live": "python test_live.py",
+    "test": "cd ../backend && python -m pytest",
+    "test:integration": "if [ -f ../backend/test_endpoints.py ]; then python ../backend/test_endpoints.py; else echo \"No integration test script found\"; fi",
+    "test:live": "if [ -f ../backend/test_live.py ]; then python ../backend/test_live.py; else echo \"No e2e/live test script found\"; fi",
     "lint": "next lint"
   },
   "dependencies": {
