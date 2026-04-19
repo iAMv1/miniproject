@@ -4,9 +4,8 @@ import type { ChatSession, ChatMessage, WellnessCheckin, WellnessInsight, FocusS
 // ─── Chat API ───
 
 export async function createChatSession(title?: string): Promise<{ success: boolean; session: ChatSession }> {
-  return request("/chat/sessions", {
+  return request(`/chat/sessions?title=${encodeURIComponent(title || "New Chat")}`, {
     method: "POST",
-    body: JSON.stringify({ title: title || "New Chat" }),
   });
 }
 
@@ -30,8 +29,10 @@ export function chatStream(
 ): () => void {
   const token = getToken();
   
-  const params = new URLSearchParams({ message });
-  if (sessionId) params.append("session_id", sessionId);
+  const params = new URLSearchParams();
+  if (sessionId) {
+    params.append("session_id", sessionId);
+  }
   
   const url = `${BASE}/chat/stream?${params.toString()}`;
   const abortController = new AbortController();
@@ -39,8 +40,10 @@ export function chatStream(
   const readerPromise = fetch(url, {
     method: "POST",
     headers: {
+      "Content-Type": "application/json",
       Authorization: token ? `Bearer ${token}` : "",
     },
+    body: JSON.stringify({ message }),
     signal: abortController.signal,
   }).then(async (res) => {
     if (!res.ok || !res.body) {

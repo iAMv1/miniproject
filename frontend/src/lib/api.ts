@@ -195,7 +195,10 @@ export const api = {
   
   // ─── Chat ───
   createChatSession: (title?: string) =>
-    request<{ success: boolean; session: { id: string; title: string; created_at: string } }>("/chat/sessions", { method: "POST", body: JSON.stringify({ title: title || "New Chat" }) }),
+    request<{ success: boolean; session: { id: string; title: string; created_at: string } }>(
+      `/chat/sessions?title=${encodeURIComponent(title || "New Chat")}`,
+      { method: "POST" }
+    ),
   getChatSessions: (limit?: number) =>
     request<{ success: boolean; sessions: { id: string; title: string; created_at: string }[] }>(`/chat/sessions?limit=${limit || 20}`),
   getChatMessages: (sessionId: string) =>
@@ -276,7 +279,7 @@ export const api = {
                 fullResponse += data.content;
                 callbacks.onToken?.(data.content);
               } else if (data.type === "classification") {
-                callbacks.onClassification?.(data.agent_type);
+                callbacks.onClassification?.(data.agent);
               } else if (data.type === "tool_request") {
                 callbacks.onToolRequest?.(data);
               } else if (data.type === "done") {
