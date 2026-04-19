@@ -8,7 +8,7 @@ if (!secret && process.env.NODE_ENV !== "development") {
 }
 
 const handlerConfig = {
-  secret: secret || "fallback-secret-dev-mode-only",
+  secret,
   providers: [
     Credentials({
       credentials: {
