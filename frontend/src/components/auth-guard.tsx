@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 
 const PUBLIC_PATHS = ["/login", "/signup"];
 
@@ -16,13 +17,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const token = localStorage.getItem("mp_token");
-    if (!token) {
-      router.replace("/login");
-      return;
-    } else {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        router.replace("/login");
+        return;
+      }
       setChecked(true);
-    }
+    });
   }, [pathname, router]);
 
   if (!checked) {

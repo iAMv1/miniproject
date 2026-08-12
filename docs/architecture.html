@@ -3,328 +3,214 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>MindPulse — Complete Application Architecture (verified Aug 2026)</title>
+<title>MindPulse — Architecture (Supabase-only backend) · Aug 2026</title>
 <style>
-  :root {
-    --ok: #16a34a; --ok-bg: #f0fdf4;
-    --broken: #dc2626; --broken-bg: #fef2f2;
-    --wrong: #d97706; --wrong-bg: #fffbeb;
-    --open: #64748b; --open-bg: #f8fafc;
-    --box: #ffffff; --border: #cbd5e1;
-    --text: #0f172a; --muted: #64748b;
-  }
+  :root { --ok:#16a34a; --broken:#dc2626; --wrong:#d97706; --open:#64748b; --border:#cbd5e1; --text:#0f172a; --muted:#64748b; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; font-family: "Segoe UI", system-ui, sans-serif;
-    background: #f1f5f9; color: var(--text); padding: 24px;
-  }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-  .wrap { max-width: 1500px; margin: 0 auto; background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
-  .legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 14px 0 6px; font-size: 13px; }
-  .legend div { display: flex; align-items: center; gap: 7px; }
-  .swatch { width: 26px; height: 3px; border-radius: 2px; display: inline-block; }
-  .swatch.broken { background: var(--broken); }
-  .swatch.ok { background: var(--ok); }
-  .swatch.wrong { background: var(--wrong); }
-  .swatch.open { background: var(--open); border: 1px dashed var(--muted); height: 2px; }
-  svg { width: 100%; height: auto; display: block; }
-  .box { fill: var(--box); stroke: var(--border); stroke-width: 1.2; rx: 8; }
-  .box-title { font-size: 12.5px; font-weight: 700; fill: var(--text); }
-  .box-sub { font-size: 10px; fill: var(--muted); }
-  .item { font-size: 10.5px; fill: #334155; }
-  .edge { fill: none; stroke-width: 2; }
-  .edge-ok { stroke: var(--ok); }
-  .edge-broken { stroke: var(--broken); stroke-dasharray: 6 4; }
-  .edge-wrong { stroke: var(--wrong); stroke-dasharray: 2 3; }
-  .edge-open { stroke: var(--open); stroke-dasharray: 2 5; }
-  .edge-label { font-size: 9.5px; fill: var(--muted); }
-  .edge-label-ok { fill: #15803d; font-weight: 600; }
-  .edge-label-broken { fill: #b91c1c; font-weight: 600; }
-  .edge-label-wrong { fill: #b45309; font-weight: 600; }
-  .edge-label-open { fill: var(--muted); }
-  .col-title { font-size: 13px; font-weight: 800; fill: #1e293b; letter-spacing: .4px; }
-  .note { font-size: 11px; fill: var(--muted); }
-  .badge { font-size: 9px; font-weight: 700; }
-  .badge-ok { fill: #166534; }
-  .badge-broken { fill: #991b1b; }
-  .badge-wrong { fill: #92400e; }
-  .badge-open { fill: #475569; }
-  pre { background: #0f172a; color: #e2e8f0; padding: 12px 16px; border-radius: 8px; font-size: 11.5px; overflow-x: auto; line-height: 1.5; margin-top: 16px; }
+  body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:#f1f5f9; color:var(--text); padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:16px; }
+  .wrap { max-width:1500px; margin:0 auto; background:#fff; border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .legend { display:flex; flex-wrap:wrap; gap:18px; margin:14px 0 6px; font-size:13px; }
+  .legend div { display:flex; align-items:center; gap:7px; }
+  .swatch { width:26px; height:3px; border-radius:2px; display:inline-block; }
+  .swatch.broken { background:var(--broken); } .swatch.ok { background:var(--ok); }
+  .swatch.wrong { background:var(--wrong); } .swatch.open { background:var(--open); border:1px dashed var(--muted); height:2px; }
+  svg { width:100%; height:auto; display:block; }
+  .box { fill:#fff; stroke:var(--border); stroke-width:1.2; rx:8; }
+  .box-title { font-size:12.5px; font-weight:700; fill:var(--text); }
+  .box-sub { font-size:10px; fill:var(--muted); }
+  .item { font-size:10.5px; fill:#334155; }
+  .edge { fill:none; stroke-width:2; }
+  .edge-ok { stroke:var(--ok); } .edge-broken { stroke:var(--broken); stroke-dasharray:6 4; }
+  .edge-wrong { stroke:var(--wrong); stroke-dasharray:2 3; } .edge-open { stroke:var(--open); stroke-dasharray:2 5; }
+  .edge-label { font-size:9.5px; fill:var(--muted); }
+  .edge-label-ok { fill:#15803d; font-weight:600; } .edge-label-broken { fill:#b91c1c; font-weight:600; }
+  .edge-label-wrong { fill:#b45309; font-weight:600; } .edge-label-open { fill:var(--muted); }
+  .col-title { font-size:13px; font-weight:800; fill:#1e293b; letter-spacing:.4px; }
+  .note { font-size:11px; fill:var(--muted); }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px 16px; border-radius:8px; font-size:11.5px; overflow-x:auto; line-height:1.5; margin-top:16px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>MindPulse — Complete Application Architecture</h1>
-  <div class="sub">Single diagram of every component and connection · verified by code inspection + live E2E tests · 12 Aug 2026</div>
-
+  <h1>MindPulse — Architecture (Supabase-only backend)</h1>
+  <div class="sub">One diagram · verified Aug 13 2026 · frontend: miniproject-one-delta.vercel.app</div>
   <div class="legend">
-    <div><span class="swatch ok"></span> Connected &amp; verified working</div>
-    <div><span class="swatch broken"></span> Broken / dead connection</div>
-    <div><span class="swatch wrong"></span> Connected incorrectly (contract mismatch)</div>
-    <div><span class="swatch open"></span> Open / optional / unused (graceful)</div>
+    <div><span class="swatch ok"></span> Connected / working</div>
+    <div><span class="swatch wrong"></span> Wired but needs your account step</div>
+    <div><span class="swatch broken"></span> Broken / not built</div>
+    <div><span class="swatch open"></span> Optional / future</div>
   </div>
-
-<svg viewBox="0 0 1460 940" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, system-ui, sans-serif">
+<svg viewBox="0 0 1460 920" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, system-ui, sans-serif">
   <defs>
-    <marker id="arr-ok" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#16a34a"/></marker>
-    <marker id="arr-broken" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#dc2626"/></marker>
-    <marker id="arr-wrong" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#d97706"/></marker>
-    <marker id="arr-open" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#64748b"/></marker>
+    <marker id="a-ok" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#16a34a"/></marker>
+    <marker id="a-wrong" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#d97706"/></marker>
+    <marker id="a-broken" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#dc2626"/></marker>
+    <marker id="a-open" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#64748b"/></marker>
   </defs>
 
-  <!-- ══════════ COLUMN HEADERS ══════════ -->
   <text class="col-title" x="30" y="34">CLIENTS</text>
-  <text class="col-title" x="560" y="34">BACKEND (FastAPI · port 5000)</text>
-  <text class="col-title" x="1140" y="34">CLOUD &amp; EXTERNAL</text>
+  <text class="col-title" x="560" y="34">SUPABASE — the whole backend (project lqpwjxhtziviehosqcbd)</text>
+  <text class="col-title" x="1140" y="34">EXTERNAL / CLOUD</text>
 
-  <!-- ══════════ CLIENT BOXES ══════════ -->
+  <!-- Frontend -->
+  <g>
+    <rect class="box" x="30" y="60" width="260" height="330"/>
+    <text class="box-title" x="44" y="84">🌐 Frontend (Next.js)</text>
+    <text class="box-sub" x="44" y="100">miniproject-one-delta.vercel.app · Vercel</text>
+    <text class="item" x="44" y="122">· supabase-js client (lib/supabase.ts)</text>
+    <text class="item" x="44" y="138">· Auth: signInWithPassword / signUp /</text>
+    <text class="item" x="59" y="152">signInWithOAuth(google) — Supabase-managed</text>
+    <text class="item" x="44" y="170">· use-auth: getSession + onAuthStateChange</text>
+    <text class="item" x="44" y="186">· auth-guard: session-checked routes</text>
+    <text class="item" x="44" y="204">· inferStress() → Edge Function `infer`</text>
+    <text class="item" x="44" y="220">· chatWithAssistant() → Edge Function `chat`</text>
+    <text class="item" x="44" y="238">· Pages: tracking, history, insights, chat,</text>
+    <text class="item" x="59" y="252">wellness, focus, privacy, calibration</text>
+    <text class="item" x="44" y="272" fill="#92400e">⚠ legacy api.ts (FastAPI) still referenced by</text>
+    <text class="item" x="59" y="286" fill="#92400e">some pages — migration in progress</text>
+    <text class="item" x="44" y="306">· build verified ✅ (npm run build)</text>
+  </g>
+
   <!-- Desktop -->
   <g>
-    <rect class="box" x="30" y="60" width="250" height="190"/>
-    <text class="box-title" x="44" y="84">🖥 Desktop client (Tauri)</text>
-    <text class="box-sub" x="44" y="100">desktop/src-tauri/src/main.rs</text>
-    <text class="item" x="44" y="122">· rdev/enigo — keyboard &amp; mouse hook</text>
-    <text class="item" x="44" y="138">· BehavioralCollector (Rust)</text>
-    <text class="item" x="44" y="154">· rusqlite — local session storage</text>
-    <text class="item" x="44" y="170">· tray icon, toast notifications</text>
-    <text class="item" x="44" y="190" fill="#b91c1c">✗ NO HTTP client (reqwest absent)</text>
-    <text class="item" x="44" y="206" fill="#b91c1c">✗ sends NOTHING to the backend</text>
+    <rect class="box" x="30" y="420" width="260" height="120"/>
+    <text class="box-title" x="44" y="444">🖥 Desktop (Tauri, Rust)</text>
+    <text class="item" x="44" y="466">· key/mouse collector (rdev/enigo)</text>
+    <text class="item" x="44" y="482">· telemetry bridge code written (reqwest)</text>
+    <text class="item" x="44" y="500" fill="#b91c1c">✗ targets FastAPI endpoint — must point</text>
+    <text class="item" x="44" y="514" fill="#b91c1c">  at Supabase (not built; also can't compile here)</text>
   </g>
 
-  <!-- Browser -->
+  <!-- Supabase: Auth -->
   <g>
-    <rect class="box" x="30" y="290" width="250" height="290"/>
-    <text class="box-title" x="44" y="314">🌐 Frontend (Next.js · 3000)</text>
-    <text class="box-sub" x="44" y="330">frontend/src</text>
-    <text class="item" x="44" y="352">· lib/api.ts — REST client (Bearer JWT)</text>
-    <text class="item" x="44" y="368">· hooks/use-stress-stream.ts — WS client</text>
-    <text class="item" x="44" y="384">· hooks/use-auth.ts — session mgmt</text>
-    <text class="item" x="44" y="400">· components/auth-guard.tsx</text>
-    <text class="item" x="44" y="416">· ONNX browser inference (onnxruntime-web)</text>
-    <text class="item" x="44" y="432">· lib/webllm-client.ts (unused)</text>
-    <text class="item" x="44" y="448">· lib/partykit-client.ts (unused)</text>
-    <text class="item" x="44" y="468" fill="#92400e">⚠ ONNX model = OLD synthetic weights</text>
-    <text class="item" x="44" y="484" fill="#92400e">⚠ ≠ backend real-data model</text>
-    <text class="item" x="44" y="504">· pages: tracking, history, insights,</text>
-    <text class="item" x="44" y="518">  chat, focus, wellness, interventions</text>
-    <text class="item" x="44" y="538">· JWT in localStorage (mp_token)</text>
-    <text class="item" x="44" y="554">· build verified ✅ (npm run build)</text>
+    <rect class="box" x="530" y="60" width="330" height="150"/>
+    <text class="box-title" x="544" y="84">🔐 Supabase Auth</text>
+    <text class="item" x="544" y="106">· email + password (built-in)</text>
+    <text class="item" x="544" y="122">· Google OAuth via Providers → Google</text>
+    <text class="item" x="544" y="140" fill="#92400e">⚠ needs your Google client ID/Secret</text>
+    <text class="item" x="544" y="156" fill="#92400e">  (SETUP_GUIDE.md section B, 9 steps)</text>
+    <text class="item" x="544" y="176" fill="#166534">✓ login/signup/guard code migrated</text>
   </g>
 
-  <!-- ══════════ BACKEND BOXES ══════════ -->
-  <!-- API layer -->
+  <!-- Supabase: Postgres -->
   <g>
-    <rect class="box" x="530" y="60" width="330" height="180"/>
-    <text class="box-title" x="544" y="84">⚙ API layer — app/api</text>
-    <text class="box-sub" x="544" y="100">all routes under /api/v1</text>
-    <text class="item" x="544" y="122">· auth_routes.py — signup/login/me/google</text>
-    <text class="item" x="544" y="138">· routes.py — inference, history, stats,</text>
-    <text class="item" x="559" y="152">feedback, interventions, calibration,</text>
-    <text class="item" x="559" y="166">reset, model-metrics, ws/stress, stream</text>
-    <text class="item" x="544" y="184">· extended_routes.py — chat, wellness, focus</text>
-    <text class="item" x="544" y="202">· ALL data routes auth-protected (fixed ✅)</text>
-    <text class="item" x="544" y="218">· rate limiting: login 10/min, inference 120/min</text>
+    <rect class="box" x="530" y="240" width="330" height="190"/>
+    <text class="box-title" x="544" y="264">🗄 Postgres (schema v2, RLS on)</text>
+    <text class="item" x="544" y="286">· chat_sessions / chat_messages</text>
+    <text class="item" x="544" y="302">· wellness_checkins / wellness_insights</text>
+    <text class="item" x="544" y="318">· focus_snapshots / user_shield_settings</text>
+    <text class="item" x="544" y="336">· stress_history / ema_checkins</text>
+    <text class="item" x="544" y="352">· telemetry_events / user_baselines</text>
+    <text class="item" x="544" y="368">· interventions</text>
+    <text class="item" x="544" y="388" fill="#166534">✓ schema applied + verified (query OK)</text>
+    <text class="item" x="544" y="404" fill="#166534">✓ row-level security: users own their rows</text>
   </g>
 
-  <!-- Services -->
+  <!-- Supabase: Edge Functions -->
   <g>
-    <rect class="box" x="530" y="270" width="330" height="170"/>
-    <text class="box-title" x="544" y="294">🧠 Services — app/services</text>
-    <text class="item" x="544" y="316">· inference.py — predict engine</text>
-    <text class="item" x="559" y="332">  23 raw → (zero-mask + clip) → XGBoost</text>
-    <text class="item" x="559" y="346">  → probs → score → heuristic blend</text>
-    <text class="item" x="559" y="360">  → online adapter → response</text>
-    <text class="item" x="544" y="380">· history.py · interventions.py</text>
-    <text class="item" x="544" y="396">· websocket_manager.py · users.py</text>
-    <text class="item" x="544" y="412">· chat_llm.py (Gemini/OpenAI fallback)</text>
-    <text class="item" x="544" y="428">· wellness_service.py · focus_service.py</text>
+    <rect class="box" x="530" y="460" width="330" height="170"/>
+    <text class="box-title" x="544" y="484">⚡ Edge Functions (Deno)</text>
+    <text class="item" x="544" y="506">· `infer` — XGBoost tree-walker in JS</text>
+    <text class="item" x="559" y="522">  parity vs Python: max diff 4.3e-08 ✅</text>
+    <text class="item" x="559" y="538">  output: score + deviation OK/ELEVATED</text>
+    <text class="item" x="544" y="556">· `chat` — Gemini proxy (gemini-flash-latest)</text>
+    <text class="item" x="544" y="574" fill="#92400e">⚠ code ready in supabase/functions/ —</text>
+    <text class="item" x="544" y="588" fill="#92400e">  not yet deployed to your project</text>
   </g>
 
-  <!-- ML core -->
+  <!-- Supabase: Storage -->
   <g>
-    <rect class="box" x="530" y="470" width="330" height="190"/>
-    <text class="box-title" x="544" y="494">📈 ML core — app/ml</text>
-    <text class="item" x="544" y="516">· model.py — load/train/validate XGBoost</text>
-    <text class="item" x="544" y="532">· feature_extractor.py — 23 features</text>
-    <text class="item" x="544" y="548">· synthetic_data.py — legacy generator</text>
-    <text class="item" x="544" y="564">· ensemble.py — RF/LightGBM (opt-in)</text>
-    <text class="item" x="544" y="580">· online_learning.py — score adapter</text>
-    <text class="item" x="544" y="596">· temporal_model.py — LSTM hook</text>
-    <text class="item" x="544" y="616" fill="#166534">✓ model_xgb.joblib — REAL-data trained</text>
-    <text class="item" x="544" y="632" fill="#166534">✓ global_stats.joblib (+ guards)</text>
-    <text class="item" x="544" y="648" fill="#166534">✓ artifacts_manifest.json — provenance</text>
+    <rect class="box" x="530" y="660" width="330" height="100"/>
+    <text class="box-title" x="544" y="684">📦 Storage (models bucket)</text>
+    <text class="item" x="544" y="706">· xgb_model.json (current model, 1200 trees)</text>
+    <text class="item" x="544" y="722">· exported from real confound-free training</text>
+    <text class="item" x="544" y="740" fill="#92400e">⚠ upload needed; MODEL_JSON_URL secret</text>
   </g>
 
-  <!-- Core + DB -->
+  <!-- External -->
   <g>
-    <rect class="box" x="530" y="690" width="330" height="150"/>
-    <text class="box-title" x="544" y="714">🔐 Core &amp; storage — app/core · db</text>
-    <text class="item" x="544" y="736">· auth.py — JWT (ephemeral key if unset) + bcrypt</text>
-    <text class="item" x="544" y="752">· config.py · ratelimit.py (new) · supabase.py</text>
-    <text class="item" x="544" y="772">· users.db (SQLite) — accounts</text>
-    <text class="item" x="544" y="788">· history.db (SQLite) — sessions</text>
-    <text class="item" x="544" y="804">· baseline db — per-user calibration</text>
-    <text class="item" x="544" y="822" fill="#166534">✓ all verified working via E2E test</text>
-  </g>
-
-  <!-- ══════════ CLOUD / EXTERNAL ══════════ -->
-  <g>
-    <rect class="box" x="1100" y="60" width="320" height="150"/>
-    <text class="box-title" x="1114" y="84">☁ Kaggle (cloud training)</text>
-    <text class="box-sub" x="1114" y="100">afafas212141</text>
-    <text class="item" x="1114" y="122">· dataset mindpulse-swell-v3 (public)</text>
-    <text class="item" x="1114" y="138">· kernel v6/v7/v8 — GPU runs:</text>
-    <text class="item" x="1129" y="152">pip install → LOOCV → tuning → artifacts</text>
-    <text class="item" x="1114" y="170" fill="#166534">✓ v6/v7 completed, v8 running (tuning)</text>
-    <text class="item" x="1114" y="186" fill="#166534">✓ results: acc 0.712–0.714, ρ 0.070/0.241</text>
+    <rect class="box" x="1100" y="60" width="320" height="120"/>
+    <text class="box-title" x="1114" y="84">🔑 Google</text>
+    <text class="item" x="1114" y="106">· OAuth client (Web) → Supabase provider</text>
+    <text class="item" x="1114" y="122">· redirect: lqpwjxhtziviehosqcbd.supabase.co</text>
+    <text class="item" x="1114" y="138">  /auth/v1/callback</text>
+    <text class="item" x="1114" y="158" fill="#92400e">⚠ your console step (guide section B)</text>
   </g>
 
   <g>
-    <rect class="box" x="1100" y="240" width="320" height="110"/>
-    <text class="box-title" x="1114" y="264">📦 GitHub Release</text>
-    <text class="box-sub" x="1114" y="280">iAMv1/miniproject</text>
-    <text class="item" x="1114" y="302">· tag model-v1-swellkw — assets:</text>
-    <text class="item" x="1129" y="316">model_xgb.joblib · global_stats.joblib · manifest</text>
-    <text class="item" x="1114" y="334" fill="#166534">✓ published via gh CLI</text>
+    <rect class="box" x="1100" y="210" width="320" height="100"/>
+    <text class="box-title" x="1114" y="234">🤖 Gemini API</text>
+    <text class="item" x="1114" y="256">· gemini-flash-latest (verified working)</text>
+    <text class="item" x="1114" y="272">· key: GEMINI_API_KEY (yours, already valid)</text>
+    <text class="item" x="1114" y="290" fill="#166534">✓ used by chat edge function</text>
   </g>
 
   <g>
-    <rect class="box" x="1100" y="380" width="320" height="120"/>
-    <text class="box-title" x="1114" y="404">🗄 Supabase (extended features)</text>
-    <text class="item" x="1114" y="426">· chat sessions, wellness check-ins,</text>
-    <text class="item" x="1114" y="440">  focus state, distraction shield</text>
-    <text class="item" x="1114" y="458" fill="#92400e">⚠ keys in .env.example now placeholders;</text>
-    <text class="item" x="1114" y="472" fill="#92400e">  graceful degradation, NOT E2E tested</text>
+    <rect class="box" x="1100" y="340" width="320" height="130"/>
+    <text class="box-title" x="1114" y="364">🎓 Model training (cloud)</text>
+    <text class="item" x="1114" y="386">· Kaggle GPU — LOOCV + tuning (done)</text>
+    <text class="item" x="1114" y="402">· datasets: SWELL-KW + rebuilt Kaggle +</text>
+    <text class="item" x="1114" y="416">  IKDD/KUPA/136M (unlabeled, pretraining)</text>
+    <text class="item" x="1114" y="434">· artifacts → GitHub Release model-v1</text>
+    <text class="item" x="1114" y="452" fill="#475569">○ Google Colab = future option</text>
   </g>
 
   <g>
-    <rect class="box" x="1100" y="530" width="320" height="120"/>
-    <text class="box-title" x="1114" y="554">🧩 LLM &amp; MCP (optional)</text>
-    <text class="item" x="1114" y="576">· Gemini / OpenAI — chat assistant</text>
-    <text class="item" x="1114" y="590">· Composio MCP — calendar/email/Slack</text>
-    <text class="item" x="1114" y="606" fill="#475569">○ open: empty key = graceful skip</text>
-    <text class="item" x="1114" y="622" fill="#475569">○ not load-bearing for core loop</text>
+    <rect class="box" x="1100" y="500" width="320" height="120"/>
+    <text class="box-title" x="1114" y="524">🧪 FastAPI backend (legacy)</text>
+    <text class="item" x="1114" y="546">· still used for local dev + training scripts</text>
+    <text class="item" x="1114" y="562">· NOT part of the deployed app anymore</text>
+    <text class="item" x="1114" y="580" fill="#475569">○ retire after frontend migration completes</text>
   </g>
 
-  <g>
-    <rect class="box" x="1100" y="680" width="320" height="140"/>
-    <text class="box-title" x="1114" y="704">💾 Data sources (training)</text>
-    <text class="item" x="1114" y="726">· SWELL-KW per-minute features ✅ (in use)</text>
-    <text class="item" x="1114" y="740">· SWELL-KW raw uLog XMLs ✅ (75 files, parsed)</text>
-    <text class="item" x="1114" y="754">· Kaggle 2-user dataset (supplement only)</text>
-    <text class="item" x="1114" y="770" fill="#475569">· SENSE-42 — ○ restricted, request access</text>
-    <text class="item" x="1114" y="786" fill="#475569">· Pepa 2021 / ETH 2025 — ○ on request</text>
-  </g>
+  <!-- Edges -->
+  <path class="edge edge-ok" d="M 290 150 L 530 150" marker-end="url(#a-ok)"/>
+  <text class="edge-label edge-label-ok" x="300" y="142">supabase-js auth + tables ✅</text>
 
-  <!-- ══════════ EDGES ══════════ -->
-  <!-- Desktop -> backend: BROKEN -->
-  <path class="edge edge-broken" d="M 280 130 L 530 130" marker-end="url(#arr-broken)"/>
-  <text class="edge-label edge-label-broken" x="300" y="122">✗ no HTTP client in desktop code</text>
-  <text class="edge-label" x="300" y="134">(completion report CLAIMED it)</text>
+  <path class="edge edge-wrong" d="M 290 220 C 390 240 430 250 530 250" marker-end="url(#a-wrong)"/>
+  <text class="edge-label edge-label-wrong" x="300" y="250">infer/chat edge functions ⚠ deploy</text>
 
-  <!-- Browser -> API: OK -->
-  <path class="edge edge-ok" d="M 280 360 L 530 360" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="300" y="352">REST /api/v1 · Bearer JWT · verified E2E ✅</text>
+  <path class="edge edge-ok" d="M 695 210 L 695 240" marker-end="url(#a-ok)"/>
+  <path class="edge edge-ok" d="M 695 430 L 695 460" marker-end="url(#a-ok)"/>
+  <path class="edge edge-ok" d="M 695 630 L 695 660" marker-end="url(#a-ok)"/>
 
-  <!-- Browser -> WS: OK -->
-  <path class="edge edge-ok" d="M 280 420 C 380 460 420 470 530 440" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="300" y="452">WS /ws/stress?token= ✅ (fixed)</text>
+  <path class="edge edge-broken" d="M 160 480 L 160 400" marker-end="url(#a-broken)"/>
+  <text class="edge-label edge-label-broken" x="170" y="440">✗ desktop → Supabase: not built</text>
 
-  <!-- Browser ONNX: WRONG -->
-  <path class="edge edge-wrong" d="M 280 470 C 380 500 420 510 530 500" marker-end="url(#arr-wrong)"/>
-  <text class="edge-label edge-label-wrong" x="292" y="502">browser ONNX = old synthetic model ⚠</text>
-  <text class="edge-label" x="292" y="514">≠ backend real-data weights</text>
+  <path class="edge edge-wrong" d="M 1114 130 C 1020 140 980 120 860 120" marker-end="url(#a-wrong)"/>
+  <text class="edge-label edge-label-wrong" x="930" y="112">Google OAuth provider ⚠</text>
 
-  <!-- API -> Services: OK -->
-  <path class="edge edge-ok" d="M 695 240 L 695 270" marker-end="url(#arr-ok)"/>
+  <path class="edge edge-ok" d="M 1260 310 L 1260 340" marker-end="url(#a-ok)"/>
+  <text class="edge-label edge-label-ok" x="1270" y="330">Gemini key → chat fn</text>
 
-  <!-- Services -> ML: OK -->
-  <path class="edge edge-ok" d="M 695 440 L 695 470" marker-end="url(#arr-ok)"/>
+  <path class="edge edge-open" d="M 1260 470 L 1260 660" marker-end="url(#a-open)"/>
+  <text class="edge-label edge-label-open" x="1270" y="560">model JSON → storage bucket</text>
 
-  <!-- ML -> artifacts: OK (internal, dashed green) -->
-  <path class="edge edge-ok" d="M 695 660 L 695 690" marker-end="url(#arr-ok)"/>
-
-  <!-- ML internal broken paths -->
-  <g>
-    <path class="edge edge-broken" d="M 560 560 L 560 630" marker-end="url(#arr-broken)"/>
-    <text class="edge-label edge-label-broken" x="440" y="600">✗ SHAP explainer — disabled (array shape)</text>
-    <path class="edge edge-broken" d="M 620 560 L 620 630" marker-end="url(#arr-broken)"/>
-    <text class="edge-label edge-label-broken" x="622" y="604">✗ ensemble RF/LightGBM — no artifacts</text>
-    <path class="edge edge-open" d="M 680 560 L 680 630" marker-end="url(#arr-open)"/>
-    <text class="edge-label edge-label-open" x="682" y="604">○ LSTM — code hook only, no model</text>
-  </g>
-
-  <!-- Backend -> Supabase: WRONG-ish (amber) -->
-  <path class="edge edge-wrong" d="M 860 420 C 960 420 1000 430 1100 435" marker-end="url(#arr-wrong)"/>
-  <text class="edge-label edge-label-wrong" x="870" y="412">⚠ extended routes → Supabase</text>
-  <text class="edge-label" x="870" y="424">(keys now placeholders — degraded)</text>
-
-  <!-- Backend -> LLM: OPEN -->
-  <path class="edge edge-open" d="M 860 540 C 960 540 1000 560 1100 570" marker-end="url(#arr-open)"/>
-  <text class="edge-label edge-label-open" x="870" y="536">○ chat_llm → Gemini/OpenAI (optional)</text>
-
-  <!-- Backend -> Composio: OPEN -->
-  <path class="edge edge-open" d="M 860 600 C 960 600 1000 610 1100 610" marker-end="url(#arr-open)"/>
-  <text class="edge-label edge-label-open" x="870" y="596">○ Composio MCP (optional)</text>
-
-  <!-- Kaggle -> Release: OK -->
-  <path class="edge edge-ok" d="M 1260 210 L 1260 240" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="1270" y="226">artifacts → release</text>
-
-  <!-- Release -> Backend download: OK -->
-  <path class="edge edge-ok" d="M 1100 300 C 1000 300 950 300 860 310" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="920" y="292">MINDPULSE_MODEL_URL download ✅</text>
-
-  <!-- Data -> Kaggle: OK -->
-  <path class="edge edge-ok" d="M 1260 680 L 1260 210" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="1270" y="450">SWELL-KW features → Kaggle dataset</text>
-
-  <!-- Desktop local sqlite: OK internal -->
-  <path class="edge edge-ok" d="M 100 250 L 100 285" marker-end="url(#arr-ok)"/>
-  <text class="edge-label edge-label-ok" x="110" y="270">local rusqlite ✅</text>
-
-  <!-- Browser -> PartyKit: OPEN -->
-  <path class="edge edge-open" d="M 155 580 L 155 300" marker-end="url(#arr-open)"/>
-  <text class="edge-label edge-label-open" x="160" y="440">○ partykit-client.ts — unused</text>
-
-  <!-- ══════════ NOTES ══════════ -->
-  <text class="note" x="30" y="880">Verified Aug 2026: frontend build ✅ · backend boots with real-data model ✅ · signup/login ✅ · inference class-separation on real SWELL rows ✅ (NEUTRAL 17–19 / MILD 51–56 / STRESSED 67–80) · history/stats ✅</text>
-  <text class="note" x="30" y="896">Fixed today: 46-vs-23 feature contract · schema bounds vs real distributions · bcrypt/passlib crash · demo token · unprotected routes · WS/SSE auth · rate limiting · distribution guards (zero-mask, clip).</text>
-  <text class="note" x="30" y="912">Open work: browser ONNX regeneration (py3.12 blocks onnxmltools) · desktop→backend bridge · tests · SENSE-42 access request.</text>
+  <text class="note" x="30" y="880">Auth correctness: login (password) ✓ · signup (email confirm) ✓ · Google (Supabase provider) — code done, needs Google client steps · guards ✓ · build passes ✓. Known: pages still calling legacy api.ts are being migrated next.</text>
 </svg>
 
-  <pre>CONNECTION REPORT (12 Aug 2026)
-  ==============================
-  ✅ CONNECTED &amp; VERIFIED
-    Frontend REST → backend /api/v1 (Bearer JWT)           — E2E tested
-    Frontend WS → /ws/stress?token=                        — fixed + tested
-    Frontend SSE → /inference/stream?token=                — fixed
-    Backend → SQLite (users/history/baseline)              — E2E tested
-    Kaggle dataset/kernel → artifacts                      — v6/v7 completed
-    Kaggle → GitHub Release model-v1-swellkw               — published
-    GitHub Release → backend (MINDPULSE_MODEL_URL)         — wired in .env.example
-    Desktop → local SQLite                                 — local collector
-    Backend ML → model_xgb.joblib (real-data)              — verified loads
+  <pre>CONNECTION REPORT (Aug 13 2026)
+  ✅ DONE & VERIFIED
+    Frontend supabase-js → Supabase Auth (login/signup/guard migrated, build passes)
+    Supabase schema v2 applied on your project (verified queryable, RLS on)
+    Gemini key valid — gemini-flash-latest working (used by chat function)
+    Model JSON exported (1200 trees) — JS tree-walker parity 4.3e-08 vs Python
 
-  ❌ BROKEN / DEAD
-    Desktop → backend (NO HTTP client in main.rs)          — report claimed it, code doesn't
-    Frontend → desktop (no bridge at all)
-    SHAP explainability (disabled, array-shape issue, returns None)
-    Ensemble RF/LightGBM (opt-in, no artifacts tracked)
+  ⚠ NEEDS YOUR ACCOUNT STEPS (SETUP_GUIDE.md)
+    Google OAuth client → Supabase Providers → Google (9 steps)
+    Deploy edge functions `infer` + `chat` (paste code, add secrets:
+    GEMINI_API_KEY, MODEL_JSON_URL)
+    Upload xgb_model.json to a Storage bucket 'models'
 
-  ⚠ CONNECTED INCORRECTLY (contract mismatch)
-    Browser ONNX (xgb_model.onnx) = OLD synthetic-trained weights
-        vs backend = real-data SWELL-KW weights → different pipelines, NOT comparable
-        (fixed today: 46-vs-23 validation hardcode; schema bounds; error_rate ≤1 vs real 2.0)
-    Supabase extended routes (keys now placeholders, degraded, untested E2E)
+  ✗ BROKEN / NOT BUILT
+    Desktop → Supabase telemetry (bridge code targets FastAPI; needs rewrite)
+    Legacy pages still calling api.ts (FastAPI) — migration in progress
 
-  ○ OPEN / OPTIONAL (graceful)
-    LLM (Gemini/OpenAI) via chat_llm.py
-    Composio MCP (calendar/email/Slack)
-    LSTM temporal hook (no artifact shipped)
-    PartyKit client, webllm client (frontend, unused)
-    SENSE-42 (restricted — request access), Pepa 2021 / ETH 2025 (on request)</pre>
+  ○ OPTIONAL / FUTURE
+    Supabase Realtime for live updates (replaces WS)
+    Google Colab training, FastAPI retirement, Docker</pre>
 </div>
 </body>
 </html>

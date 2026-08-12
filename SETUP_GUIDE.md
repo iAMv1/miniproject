@@ -31,30 +31,22 @@ you only do these three setups, then the app is fully online.
 
 ---
 
-## B. Google Sign-In button
+## B. Google Sign-In button (Supabase handles the flow)
 
-1. Open https://console.cloud.google.com → sign in with Google → accept terms if asked.
-2. At the top, click the project dropdown → **New Project** → name `mindpulse` → **Create**.
-3. Make sure "mindpulse" is selected in the dropdown.
-4. In the top search bar, type **OAuth consent screen** and open it.
-5. Choose **External** → **Create**.
-6. Fill: App name = `MindPulse`, User support email = your email → **Save and Continue** (leave scopes empty, leave test users empty) → finish the wizard.
-7. Left menu: **Credentials** → **+ Create Credentials** → **OAuth client ID**.
-8. Application type: **Web application**. Name: `mindpulse-local`.
-9. Under **Authorized JavaScript origins**: click **+ Add URI**, type `http://localhost:3000`.
-10. Under **Authorized redirect URIs**: click **+ Add URI**, type `http://localhost:3000/api/auth/google/callback`.
-11. Click **Create**. A popup shows **Client ID** and **Client Secret** — copy both.
-12. Open `backend/.env` and set:
-    ```
-    GOOGLE_CLIENT_ID=<client id>
-    GOOGLE_CLIENT_SECRET=<client secret>
-    ```
-13. Open `frontend/.env.local` (create the file if it doesn't exist) and set:
-    ```
-    NEXT_PUBLIC_GOOGLE_CLIENT_ID=<same client id>
-    ```
-14. Restart backend AND frontend.
-15. If the button says the app is "in testing": go back to the OAuth consent screen and click **Publish app**, or add your own email under **Test users** first — either works for you.
+1. Open https://console.cloud.google.com → sign in → create project `mindpulse`.
+2. Search **OAuth consent screen** → External → App name `MindPulse`, your email → save.
+3. **Credentials → + Create Credentials → OAuth client ID** → **Web application**.
+4. **Authorized redirect URIs**: add exactly
+   `https://lqpwjxhtziviehosqcbd.supabase.co/auth/v1/callback`
+5. **Authorized JavaScript origins**: add
+   `https://miniproject-one-delta.vercel.app` and
+   `https://lqpwjxhtziviehosqcbd.supabase.co`
+6. **Create** → copy Client ID + Client Secret.
+7. Supabase dashboard → **Authentication → Providers → Google** → Enable →
+   paste Client ID + Secret → Save.
+8. Supabase dashboard → **Authentication → URL Configuration** → Redirect URLs →
+   add `https://miniproject-one-delta.vercel.app` → Save.
+9. No env vars needed — the frontend calls Supabase directly.
 
 ---
 

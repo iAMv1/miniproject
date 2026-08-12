@@ -4,14 +4,9 @@ import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { api, setToken } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { ArrowRight, Eye, EyeOff, Sparkles, Chrome } from "lucide-react";
 
-const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
-const REDIRECT_URI = typeof window !== "undefined"
-  ? `${window.location.origin}/api/auth/google/callback`
-  : "http://localhost:3000/api/auth/google/callback";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
@@ -54,9 +49,12 @@ function SignupForm() {
     setError("");
     setLoading(true);
     try {
-      const result = await api.signup(email, username, password);
-      setToken(result.access_token);
-      localStorage.setItem("mp_user", JSON.stringify(result.user));
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username, display_name: username } },
+      });
+      if (error) throw error;
       router.push(from);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Signup failed");
@@ -65,20 +63,12 @@ function SignupForm() {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    if (!GOOGLE_CLIENT_ID) {
-      setError("Google Sign-In not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID in .env");
-      return;
-    }
-    const params = new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: REDIRECT_URI,
-      response_type: "code",
-      scope: "email profile",
-      access_type: "offline",
-      prompt: "select_account",
+  const handleGoogleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
     });
-    window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`;
+    if (error) setError(error.message);
   };
 
   const strengthColors = ["bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-lime-500", "bg-emerald-500"];

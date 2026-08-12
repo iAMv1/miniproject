@@ -1,17 +1,12 @@
-/** MindPulse — Auth Hook */
-
+/** MindPulse — Auth hook (Supabase Auth) */
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 interface User {
-  id: number;
-  email: string;
-  username: string;
-  display_name: string;
-  created_at: string;
-  last_login: string;
+  id: string;
+  email?: string;
 }
 
 export function useAuth() {
@@ -19,34 +14,30 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("mp_token");
-    if (!token) {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      const session = data.session;
+      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
       setLoading(false);
-      return;
-    }
-    if (token === "demo") {
-      localStorage.removeItem("mp_token");
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
       setLoading(false);
-      return;
-    }
-    api.me()
-      .then((u) => {
-        setUser(u);
-        localStorage.setItem("mp_user", JSON.stringify(u));
-      })
-      .catch(() => {
-        localStorage.removeItem("mp_token");
-        localStorage.removeItem("mp_user");
-      })
-      .finally(() => setLoading(false));
+    });
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("mp_token");
-    localStorage.removeItem("mp_user");
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setUser(null);
     window.location.href = "/login";
   }, []);
 
-  return { user, loading, logout, userId: user ? String(user.id) : "default" };
+  return { user, loading, logout, userId: user ? user.id : "default" };
 }
