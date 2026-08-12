@@ -12,6 +12,15 @@
 // universal 3-class accuracy measured ≈ chance — this output is the
 // defensible one.
 
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "*" };
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS },
+  });
+}
+
 const MODEL_URL = Deno.env.get("MODEL_JSON_URL")
   ?? "https://supabase.storage.supabase.co/placeholder"; // set to your bucket URL
 
@@ -104,14 +113,12 @@ Deno.serve(async (req) => {
     });
   }
   if (req.method !== "POST") {
-    return new Response("method not allowed", { status: 405 });
+    return new Response("method not allowed", { status: 405, headers: CORS });
   }
   try {
     const { features } = await req.json();
     if (!features || typeof features !== "object") {
-      return new Response(JSON.stringify({ error: "features required" }), {
-        status: 400, headers: { "Content-Type": "application/json" },
-      });
+      return json({ error: "features required" }, 400);
     }
     const x = preprocess(features);
     const model = await loadModel();
@@ -123,7 +130,7 @@ Deno.serve(async (req) => {
     const deviation_level = score >= THRESHOLD_MILD ? "ELEVATED" : "OK";
     const stress_probability =
       1 / (1 + Math.exp(-0.08 * (score - THRESHOLD_MILD)));
-    return new Response(JSON.stringify({
+    return json({
       score: Math.round(score * 10) / 10,
       level,
       deviation_level,
@@ -131,11 +138,10 @@ Deno.serve(async (req) => {
       probabilities: { NEUTRAL: probs[0], MILD: probs[1], STRESSED: probs[2] },
       timestamp: Date.now() / 1000,
       note: "binary deviation semantics; universal 3-class is not claimed",
-    }), { headers: { "Content-Type": "application/json" } });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500, headers: { "Content-Type": "application/json" },
     });
+  } catch (e) {
+    return json({ error: String(e) }, 500);
   }
 });
+
 
