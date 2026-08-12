@@ -16,6 +16,40 @@ function json(data: unknown, status = 200): Response {
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const MODEL = "gemini-flash-latest";
 
+// ── Authorization: verify JWT signature + require role=authenticated.
+//    (verify_jwt alone passes the anon key — it is a valid signed JWT.)
+function b64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = b64.length % 4 === 0 ? "" : "=".repeat(4 - (b64.length % 4));
+  const bin = atob(b64 + pad);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
+
+async function isAuthenticatedUser(req: Request): Promise<boolean> {
+  const auth = req.headers.get("Authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  if (!token) return false;
+  const secret = Deno.env.get("SUPABASE_JWT_SECRET");
+  if (!secret) return false;
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const key = await crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" }, false, ["verify"],
+    );
+    const valid = await crypto.subtle.verify(
+      "HMAC", key, b64urlToBytes(parts[2]),
+      new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+    );
+    if (!valid) return false;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    return payload.role === "authenticated" && Boolean(payload.sub);
+  } catch {
+    return false;
+  }
+}
+
 const SYSTEM = `You are MindPulse's supportive wellness assistant. Keep answers
 short, warm and practical. You help users understand stress signals, suggest
 concrete micro-breaks, and never diagnose or give medical advice. If the user
@@ -35,6 +69,9 @@ Deno.serve(async (req) => {
   }
   if (req.method !== "POST") {
     return new Response("method not allowed", { status: 405, headers: CORS });
+  }
+  if (!(await isAuthenticatedUser(req))) {
+    return json({ error: "unauthorized" }, 401);
   }
   if (!GEMINI_KEY) {
     return json({ error: "GEMINI_API_KEY not configured" }, 503);
