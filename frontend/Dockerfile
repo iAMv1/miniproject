@@ -7,10 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Public browser variables are compiled into Next.js client bundles, so provide
-# them at build time as well as runtime.
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+# Copy source and build
 COPY . .
 RUN npm run build
 

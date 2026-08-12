@@ -4,8 +4,14 @@ import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { api, BASE, setToken } from "@/lib/api";
+import { api, setToken } from "@/lib/api";
 import { ArrowRight, Eye, EyeOff, Sparkles, Chrome } from "lucide-react";
+
+const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+const REDIRECT_URI = typeof window !== "undefined"
+  ? `${window.location.origin}/api/auth/google/callback`
+  : "http://localhost:3000/api/auth/google/callback";
 
 const EASE_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number];
 
@@ -33,16 +39,6 @@ function LoginForm() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    const oauthError = searchParams.get("error");
-    if (!oauthError) return;
-    setError(
-      oauthError === "access_denied"
-        ? "Google sign-in was cancelled. You can try again whenever you are ready."
-        : "Google sign-in could not be completed. Please try again or use your password."
-    );
-  }, [searchParams]);
-
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (loading) return;
@@ -60,11 +56,19 @@ function LoginForm() {
   };
 
   const handleGoogleSignIn = () => {
-    setError("");
-    setLoading(true);
-    // The backend owns the OAuth handshake so it can issue and validate the
-    // state cookie on the same origin used for Google's registered callback.
-    window.location.assign(`${BASE}/auth/google`);
+    if (!GOOGLE_CLIENT_ID) {
+      setError("Google Sign-In not configured. Set NEXT_PUBLIC_GOOGLE_CLIENT_ID in .env");
+      return;
+    }
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      response_type: "code",
+      scope: "email profile",
+      access_type: "offline",
+      prompt: "select_account",
+    });
+    window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`;
   };
 
   return (
