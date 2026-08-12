@@ -1,1011 +1,179 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion, useScroll, useMotionValue, useSpring, useTransform, AnimatePresence } from "framer-motion";
-import { ArrowUpRight, Sparkles, Shield, Zap, Brain, Coffee, Moon, Focus, Eye } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  Activity,
+  ArrowUpRight,
+  Check,
+  ChevronRight,
+  CircleDot,
+  EyeOff,
+  Keyboard,
+  MousePointer2,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 
-const EASE_OUT = [0.16, 1, 0.3, 1] as [number, number, number, number];
+const EASE = [0.16, 1, 0.3, 1] as const;
 
-export default function LivingLanding() {
-  const router = useRouter();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [scrollSignature, setScrollSignature] = useState<number[]>([]);
-  const [konamiActive, setKonamiActive] = useState(false);
-  const konamiRef = useRef<string[]>([]);
-  const [moodEmoji, setMoodEmoji] = useState<string | null>(null);
-  const [celebration, setCelebration] = useState<string | null>(null);
+const reveal = {
+  initial: { opacity: 0, y: 18 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.2 },
+  transition: { duration: 0.7, ease: EASE },
+};
 
-  const { scrollY } = useScroll();
-  const scrollVelocity = useMotionValue(0);
-  const smoothVelocity = useSpring(scrollVelocity, { damping: 50, stiffness: 300 });
-  const glowIntensity = useTransform(smoothVelocity, [0, 5], [0.3, 1]);
-  const textDistortion = useTransform(smoothVelocity, [0, 5], [0, 5]);
-
-  useEffect(() => {
-    let lastY = 0;
-    let lastTime = Date.now();
-    const unsubscribe = scrollY.on("change", (y) => {
-      const now = Date.now();
-      const dt = now - lastTime;
-      const v = dt > 0 ? Math.abs((y - lastY) / dt) * 100 : 0;
-      scrollVelocity.set(v);
-      setScrollSignature(prev => [...prev, v].slice(-20));
-      lastY = y;
-      lastTime = now;
-    });
-    return () => unsubscribe();
-  }, [scrollY, scrollVelocity]);
-
-  useEffect(() => {
-    const KONAMI = "ArrowUp,ArrowUp,ArrowDown,ArrowDown,ArrowLeft,ArrowRight,ArrowLeft,ArrowRight,b,a";
-    const handler = (e: KeyboardEvent) => {
-      konamiRef.current.push(e.key);
-      konamiRef.current = konamiRef.current.slice(-10);
-      if (konamiRef.current.join(",") === KONAMI) {
-        setKonamiActive(true);
-        triggerCelebration("🌈 Secret mode unlocked! You found the hidden rhythm.");
-        setTimeout(() => setKonamiActive(false), 15000);
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
-  const triggerCelebration = useCallback((msg: string) => {
-    setCelebration(msg);
-    setTimeout(() => setCelebration(null), 4000);
-  }, []);
-
+function Mark() {
   return (
-    <div ref={containerRef} className={`relative min-h-[700vh] bg-[#0a0a0f] overflow-x-hidden transition-colors duration-1000 ${konamiActive ? "bg-[#0f0a1a]" : ""}`}>
-      {/* Celebration toast */}
-      <AnimatePresence>
-        {celebration && (
-          <motion.div
-            className="fixed top-20 left-1/2 -translate-x-1/2 z-[999] px-6 py-3 rounded-full bg-[#5b4fc4] text-white text-sm font-medium shadow-lg"
-            initial={{ y: -40, opacity: 0, scale: 0.8 }}
-            animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: -20, opacity: 0, scale: 0.9 }}
-            transition={{ type: "spring", stiffness: 300 }}
-          >
-            {celebration}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Mood emoji floater */}
-      <AnimatePresence>
-        {moodEmoji && (
-          <motion.div
-            className="fixed z-[998] text-4xl pointer-events-none"
-            initial={{ y: 0, opacity: 1, scale: 1 }}
-            animate={{ y: -80, opacity: 0, scale: 1.5 }}
-            transition={{ duration: 1.5, ease: "easeOut" }}
-            style={{ left: "50%", top: "50%" }}
-          >
-            {moodEmoji}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Scroll rhythm tracker */}
-      <div className="fixed top-8 right-8 z-50 flex flex-col items-end gap-2">
-        <div className="text-[10px] uppercase tracking-wider text-[#857F75]">
-          {konamiActive ? "✨ Secret rhythm" : "Your scroll rhythm"}
-        </div>
-        <svg width="120" height="40" className="opacity-60">
-          <path
-            d={`M 0 20 ${scrollSignature.map((v, i) => `L ${(i / 19) * 120} ${20 - Math.min(v * 2, 18)}`).join(" ")}`}
-            fill="none"
-            stroke={konamiActive ? "#8b7fd4" : "#5b4fc4"}
-            strokeWidth="1.5"
-          />
+    <div className="flex items-center gap-2.5" aria-label="MindPulse home">
+      <div className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] shadow-[0_0_30px_rgba(139,124,246,0.16)]">
+        <svg viewBox="0 0 32 32" className="h-5 w-5" fill="none" aria-hidden="true">
+          <path d="M3 16h5l2.5-6 4.2 13 3.4-16 3.1 12 2.4-5H29" stroke="#B8B1FF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-
-      {/* Velocity-responsive background */}
-      <motion.div className="fixed inset-0 pointer-events-none" style={{ opacity: glowIntensity }}>
-        <div className={`absolute inset-0 ${konamiActive ? "bg-[radial-gradient(ellipse_at_50%_50%,_rgba(139,127,212,0.12)_0%,_transparent_70%)]" : "bg-[radial-gradient(ellipse_at_50%_50%,_rgba(91,79,196,0.08)_0%,_transparent_70%)]"}`} />
-      </motion.div>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 1: THE BREATH — Hero
-      ═══════════════════════════════════ */}
-      <section className="h-screen relative flex items-center overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.pexels.com/photos/4050315/pexels-photo-4050315.jpeg?auto=compress&cs=tinysrgb&w=1920"
-            alt="Person working calmly at desk in warm light"
-            className="w-full h-full object-cover opacity-20"
-            loading="eager"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0f] via-[#0a0a0f]/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-[#0a0a0f]/40" />
-        </div>
-
-        <BreathingCircles />
-
-        <div className="relative z-10 w-full px-8 lg:px-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
-              <motion.div className="mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 1, ease: EASE_OUT }}>
-                <MindPulseLogo />
-              </motion.div>
-
-              <motion.div className="mb-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-                <TypingHeadline text="Your rhythm," secondLine="understood." />
-              </motion.div>
-
-              <motion.p
-                className="text-lg text-[#857F75] max-w-md mb-4 leading-relaxed"
-                initial={{ opacity: 0, filter: "blur(10px)" }}
-                animate={{ opacity: 1, filter: "blur(0px)" }}
-                transition={{ delay: 2.2, duration: 1.2 }}
-              >
-                MindPulse reads your typing rhythm, focus patterns, and energy levels — then guides you back to calm with personalized suggestions.
-              </motion.p>
-
-              <motion.p
-                className="text-sm text-[#857F75]/60 mb-10"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 2.5 }}
-              >
-                No typed content is persisted. Behavioral timing, explained. {" "}
-                <span className="text-[#5b4fc4] cursor-default" title="Psst... try the Konami code (↑↑↓↓←→←→BA)">✨</span>
-              </motion.p>
-
-              <motion.div className="flex flex-wrap items-center gap-4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 2.7, duration: 0.8 }}>
-                <motion.button
-                  className="group whimsy-glow relative inline-flex items-center gap-3 px-8 py-4 rounded-full bg-[#F2EFE9] text-[#0a0a0f] font-medium text-sm overflow-hidden"
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={() => { triggerCelebration("Let's find your rhythm! 🎵"); router.push("/signup"); }}
-                >
-                  <span>Start calibration</span>
-                  <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </motion.button>
-                <motion.button
-                  className="whimsy-glow px-8 py-4 rounded-full border border-[#857F75]/30 text-[#857F75] text-sm hover:text-[#F2EFE9] hover:border-[#857F75]/60 transition-colors overflow-hidden"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => document.getElementById("features")?.scrollIntoView({ behavior: "smooth" })}
-                >
-                  Tell me the secrets
-                </motion.button>
-              </motion.div>
-
-              <motion.div className="mt-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3.2 }}>
-                <p className="text-[10px] uppercase tracking-wider text-[#857F75]/40 mb-2">Quick vibe check</p>
-                <div className="flex gap-2">
-                  {[
-                    { emoji: "😤", label: "fired up" },
-                    { emoji: "😐", label: "meh" },
-                    { emoji: "😌", label: "chill" },
-                    { emoji: "🧠", label: "focused" },
-                  ].map((m) => (
-                    <motion.button
-                      key={m.label}
-                      className="text-xl hover:scale-125 transition-transform"
-                      whileTap={{ scale: 0.8 }}
-                      onClick={() => {
-                        setMoodEmoji(m.emoji);
-                        triggerCelebration(`You're feeling ${m.label} — noted! ${m.emoji}`);
-                      }}
-                      title={m.label}
-                    >
-                      {m.emoji}
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-            </div>
-
-            <motion.div
-              className="hidden lg:flex items-center justify-center"
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 1.2, duration: 1.5, ease: EASE_OUT }}
-            >
-              <EnergyOrb konami={konamiActive} />
-            </motion.div>
-          </div>
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0a0a0f] to-transparent pointer-events-none" />
-
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[10px] uppercase tracking-wider text-[#857F75]/30 flex items-center gap-2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 3.5 }}
-        >
-          <Sparkles className="w-3 h-3" />
-          Scroll to explore your rhythm
-          <Sparkles className="w-3 h-3" />
-        </motion.div>
-      </section>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 2: THE NUDGE — How it feels
-          ENHANCED: SVG illustrations + scroll-triggered reveals
-      ═══════════════════════════════════ */}
-      <section className="min-h-screen py-32 relative" id="features">
-        <div className="px-8 lg:px-24">
-          <motion.div className="max-w-xl mb-20" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-[#857F75] mb-4">How it feels</p>
-            <h2 className="text-3xl md:text-5xl font-light text-[#F2EFE9] leading-tight">
-              Gentle nudges,<br />
-              <span className="text-[#5b4fc4]">not alarms.</span>
-            </h2>
-            <p className="text-sm text-[#857F75] mt-4">Every suggestion is an invitation, never a command.</p>
-          </motion.div>
-
-          <div className="space-y-32">
-            {/* Story 1: Focus */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <motion.div
-                className="relative"
-                initial={{ opacity: 0, x: -40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8 }}
-              >
-                <div className="rounded-2xl overflow-hidden aspect-[4/3] relative">
-                  <img
-                    src="https://images.pexels.com/photos/4050315/pexels-photo-4050315.jpeg?auto=compress&cs=tinysrgb&w=800"
-                    alt="Person working with focus at a clean desk"
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/60 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="text-[10px] uppercase tracking-wider text-[#857F75]">Focus protection</span>
-                  </div>
-                </div>
-                {/* SVG overlay — shield icon */}
-                <div className="absolute -top-4 -right-4 w-16 h-16">
-                  <svg viewBox="0 0 64 64" className="w-full h-full">
-                    <defs>
-                      <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#22c55e" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <circle cx="32" cy="32" r="30" fill="url(#shieldGrad)" />
-                    <Shield className="w-6 h-6 text-emerald-400" style={{ position: "absolute", top: 18, left: 18 }} />
-                  </svg>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, x: 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Focus className="w-5 h-5 text-emerald-400" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-emerald-400">Focus mode</span>
-                </div>
-                <h3 className="text-2xl font-light text-[#F2EFE9] mb-4">&ldquo;Your rhythm suggests focus time&rdquo;</h3>
-                <p className="text-[#857F75] leading-relaxed mb-6">
-                  When your typing is steady and distractions are low, MindPulse protects that state. It mutes non-essential nudges so you stay in flow.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {["Steady rhythm", "Low switches", "High WPM"].map((tag) => (
-                    <span key={tag} className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400">{tag}</span>
-                  ))}
-                </div>
-                {/* Mini SVG — steady wave */}
-                <svg viewBox="0 0 200 40" className="w-full h-8 opacity-40">
-                  <motion.path
-                    d="M 0 20 C 20 18, 40 22, 60 20 S 100 18, 120 20 S 160 22, 180 20 L 200 20"
-                    fill="none"
-                    stroke="#22c55e"
-                    strokeWidth="1.5"
-                    initial={{ pathLength: 0 }}
-                    whileInView={{ pathLength: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 2, delay: 0.5 }}
-                  />
-                </svg>
-              </motion.div>
-            </div>
-
-            {/* Story 2: Break — reversed */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <motion.div
-                className="lg:order-1"
-                initial={{ opacity: 0, x: -40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Coffee className="w-5 h-5 text-amber-400" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-amber-400">Gentle break</span>
-                </div>
-                <h3 className="text-2xl font-light text-[#F2EFE9] mb-4">&ldquo;A stretch break might help&rdquo;</h3>
-                <p className="text-[#857F75] leading-relaxed mb-6">
-                  Never &ldquo;you&apos;re stressed.&rdquo; Instead, a gentle suggestion when your behavioral rhythm changes — and you decide whether to act.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {["Energy dip", "Rising errors", "Click speed change"].map((tag) => (
-                    <span key={tag} className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">{tag}</span>
-                  ))}
-                </div>
-                {/* Mini SVG — wave with dip */}
-                <svg viewBox="0 0 200 40" className="w-full h-8 opacity-40">
-                  <motion.path
-                    d="M 0 15 C 30 15, 60 15, 90 20 S 120 35, 150 30 S 180 25, 200 28"
-                    fill="none"
-                    stroke="#d97706"
-                    strokeWidth="1.5"
-                    initial={{ pathLength: 0 }}
-                    whileInView={{ pathLength: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 2, delay: 0.5 }}
-                  />
-                </svg>
-              </motion.div>
-
-              <motion.div
-                className="relative lg:order-2"
-                initial={{ opacity: 0, x: 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8 }}
-              >
-                <div className="rounded-2xl overflow-hidden aspect-[4/3] relative">
-                  <img
-                    src="https://images.pexels.com/photos/3825580/pexels-photo-3825580.jpeg?auto=compress&cs=tinysrgb&w=800"
-                    alt="Person stretching at standing desk"
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/60 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="text-[10px] uppercase tracking-wider text-[#857F75]">Gentle intervention</span>
-                  </div>
-                </div>
-                <div className="absolute -top-4 -left-4 w-16 h-16">
-                  <svg viewBox="0 0 64 64" className="w-full h-full">
-                    <circle cx="32" cy="32" r="30" fill="rgba(217,119,6,0.15)" />
-                    <Coffee className="w-6 h-6 text-amber-400" style={{ position: "absolute", top: 18, left: 18 }} />
-                  </svg>
-                </div>
-              </motion.div>
-            </div>
-
-            {/* Story 3: Wind down */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-              <motion.div
-                className="relative"
-                initial={{ opacity: 0, x: -40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8 }}
-              >
-                <div className="rounded-2xl overflow-hidden aspect-[4/3] relative">
-                  <img
-                    src="https://images.pexels.com/photos/4226256/pexels-photo-4226256.jpeg?auto=compress&cs=tinysrgb&w=800"
-                    alt="Person closing laptop in evening warm light"
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f]/60 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="text-[10px] uppercase tracking-wider text-[#857F75]">Evening wind-down</span>
-                  </div>
-                </div>
-                <div className="absolute -top-4 -right-4 w-16 h-16">
-                  <svg viewBox="0 0 64 64" className="w-full h-full">
-                    <circle cx="32" cy="32" r="30" fill="rgba(133,127,117,0.15)" />
-                    <Moon className="w-6 h-6 text-[#857F75]" style={{ position: "absolute", top: 18, left: 18 }} />
-                  </svg>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, x: 40 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <Moon className="w-5 h-5 text-[#857F75]" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-[#857F75]">Wind-down</span>
-                </div>
-                <h3 className="text-2xl font-light text-[#F2EFE9] mb-4">&ldquo;Your rhythm suggests wrapping up&rdquo;</h3>
-                <p className="text-[#857F75] leading-relaxed mb-6">
-                  Late-night typing detected. Not a shutdown command — a gentle reminder that your pattern says it&apos;s time. You decide.
-                </p>
-                <div className="flex flex-wrap gap-2 mb-6">
-                  {["Late session", "Declining speed", "Fatigue signals"].map((tag) => (
-                    <span key={tag} className="px-3 py-1 rounded-full bg-[#857F75]/10 border border-[#857F75]/20 text-xs text-[#857F75]">{tag}</span>
-                  ))}
-                </div>
-                {/* Mini SVG — declining wave */}
-                <svg viewBox="0 0 200 40" className="w-full h-8 opacity-40">
-                  <motion.path
-                    d="M 0 10 C 40 10, 80 15, 120 25 S 170 35, 200 38"
-                    fill="none"
-                    stroke="#857F75"
-                    strokeWidth="1.5"
-                    initial={{ pathLength: 0 }}
-                    whileInView={{ pathLength: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 2, delay: 0.5 }}
-                  />
-                </svg>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 3: THE SIGNAL — 23 features
-          ENHANCED: Animated SVG feature grid + visual impact
-      ═══════════════════════════════════ */}
-      <section className="min-h-screen py-32 relative flex items-center">
-        <div className="w-full px-8 lg:px-24">
-          <motion.div className="max-w-xl mb-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-[#857F75] mb-4">What we sense</p>
-            <h2 className="text-3xl md:text-5xl font-light text-[#F2EFE9] leading-tight">
-              <span className="text-[#5b4fc4]">23</span> signals.<br />
-              Zero content.
-            </h2>
-            <p className="text-sm text-[#857F75] mt-4">MindPulse summarizes behavioral timing in short activity windows and never persists typed content.</p>
-          </motion.div>
-
-          {/* Feature grid with SVG icons */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-12">
-            {[
-              { name: "Hold time", icon: "⌨️", desc: "How long you press keys" },
-              { name: "Flight time", icon: "↗️", desc: "Time between keystrokes" },
-              { name: "WPM", icon: "⚡", desc: "Typing speed patterns" },
-              { name: "Error rate", icon: "↩️", desc: "Backspace frequency" },
-              { name: "Rhythm entropy", icon: "🎵", desc: "Typing chaos level" },
-              { name: "Mouse speed", icon: "🖱️", desc: "Movement velocity" },
-              { name: "Rage clicks", icon: "🔥", desc: "Frustrated clicking" },
-              { name: "Context switches", icon: "🔄", desc: "App/tab hopping" },
-              { name: "Scroll velocity", icon: "📜", desc: "Scrolling patterns" },
-              { name: "Session fragmentation", icon: "🧩", desc: "Focus interruptions" },
-              { name: "Switch entropy", icon: "🎲", desc: "Switching randomness" },
-              { name: "Direction changes", icon: "↗️", desc: "Cursor indecision" },
-              { name: "Pause frequency", icon: "⏸️", desc: "Typing pauses" },
-              { name: "Burst length", icon: "💥", desc: "Typing burst patterns" },
-              { name: "Click count", icon: "👆", desc: "Total mouse clicks" },
-              { name: "Mouse reentry", icon: "🔙", desc: "Return to mouse patterns" },
-              { name: "Session duration", icon: "⏰", desc: "Work session length" },
-              { name: "Hour of day", icon: "🕐", desc: "Circadian context" },
-              { name: "Day of week", icon: "📅", desc: "Weekly rhythm" },
-              { name: "Pause duration", icon: "⏳", desc: "Pause length patterns" },
-              { name: "Mouse direction", icon: "🧭", desc: "Movement direction" },
-              { name: "Reentry latency", icon: "⚡", desc: "Return speed" },
-              { name: "Scroll patterns", icon: "📊", desc: "Scrolling consistency" },
-            ].map((feature, i) => (
-              <motion.div
-                key={feature.name}
-                className="group p-4 rounded-xl bg-[#141420] border border-[#1c1c2e] hover:border-[#5b4fc4]/30 transition-all duration-300 cursor-default whimsy-glow overflow-hidden relative"
-                initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.03, duration: 0.4 }}
-                whileHover={{ y: -3, borderColor: "rgba(91, 79, 196, 0.4)" }}
-              >
-                <div className="text-lg mb-2">{feature.icon}</div>
-                <div className="text-xs font-medium text-[#F2EFE9] mb-1">{feature.name}</div>
-                <div className="text-[10px] text-[#857F75] opacity-0 group-hover:opacity-100 transition-opacity duration-300">{feature.desc}</div>
-              </motion.div>
-            ))}
-          </div>
-
-          <motion.p
-            className="text-xs text-[#857F75]/60 italic"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.8 }}
-          >
-            23 behavioral features × your unique baseline = a more contextual rhythm signal
-          </motion.p>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 4: THE ECHO — Data quality story
-          ENHANCED: More dramatic visual storytelling
-      ═══════════════════════════════════ */}
-      <section className="min-h-screen relative flex items-center justify-center overflow-hidden">
-        {/* Animated background number */}
-        <motion.div className="absolute inset-0 flex items-center justify-center" style={{ x: textDistortion }}>
-          <span className="text-[20vw] font-light text-red-500/10 tabular-nums select-none">570377</span>
-        </motion.div>
-
-        {/* SVG — broken data visualization */}
-        <div className="absolute inset-0 pointer-events-none">
-          <svg viewBox="0 0 1440 900" className="w-full h-full" preserveAspectRatio="xMidYMid slice" fill="none">
-            {/* Scattered data points */}
-            {(() => {
-              const points = [
-                { x: 200, y: 300, r: 3 }, { x: 400, y: 200, r: 4 }, { x: 600, y: 350, r: 2 },
-                { x: 800, y: 250, r: 5 }, { x: 1000, y: 400, r: 3 }, { x: 1200, y: 150, r: 4 },
-                { x: 300, y: 500, r: 2 }, { x: 500, y: 600, r: 3 }, { x: 700, y: 450, r: 5 },
-                { x: 900, y: 550, r: 2 }, { x: 1100, y: 300, r: 4 }, { x: 150, y: 400, r: 3 },
-                { x: 350, y: 150, r: 2 }, { x: 550, y: 700, r: 4 }, { x: 750, y: 100, r: 3 },
-                { x: 950, y: 350, r: 5 }, { x: 1150, y: 500, r: 2 }, { x: 250, y: 650, r: 4 },
-                { x: 450, y: 300, r: 3 }, { x: 650, y: 500, r: 2 }, { x: 850, y: 150, r: 5 },
-                { x: 1050, y: 600, r: 3 }, { x: 1250, y: 400, r: 4 }, { x: 180, y: 200, r: 2 },
-                { x: 380, y: 750, r: 3 }, { x: 580, y: 250, r: 4 }, { x: 780, y: 650, r: 2 },
-                { x: 980, y: 200, r: 5 }, { x: 1180, y: 700, r: 3 }, { x: 1300, y: 300, r: 4 },
-              ];
-              return points.map((p, i) => (
-                <motion.circle
-                  key={i}
-                  cx={p.x}
-                  cy={p.y}
-                  r={p.r}
-                  fill={i === 15 ? "#dc2626" : "#5b4fc4"}
-                  opacity={i === 15 ? 0.8 : 0.2}
-                  initial={{ scale: 0 }}
-                  whileInView={{ scale: 1 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.05, duration: 0.5 }}
-                >
-                  {i === 15 && (
-                    <animate attributeName="r" values={`${p.r};${p.r + 3};${p.r}`} dur="2s" repeatCount="indefinite" />
-                  )}
-                </motion.circle>
-              ));
-            })()}
-            {/* Connecting lines */}
-            <motion.path
-              d="M 200 300 Q 400 200, 600 350 T 1000 250 T 1300 400"
-              stroke="#5b4fc4"
-              strokeWidth="0.5"
-              opacity="0.15"
-              initial={{ pathLength: 0 }}
-              whileInView={{ pathLength: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 3, delay: 0.5 }}
-            />
-          </svg>
-        </div>
-
-        <div className="relative z-10 max-w-2xl px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1 }}
-          >
-            <p className="text-[11px] uppercase tracking-[0.3em] text-[#857F75] mb-8">The data quality story</p>
-          </motion.div>
-
-          <motion.p
-            className="text-2xl md:text-3xl text-[#F2EFE9] leading-relaxed"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 1 }}
-          >
-            One sample had a hold time of{" "}
-            <span className="text-red-400/80 line-through decoration-red-400/50">570,377ms</span>
-          </motion.p>
-
-          <motion.p
-            className="text-lg text-[#857F75] mt-4"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.3, duration: 1 }}
-          >
-            That&apos;s 9.5 minutes. On one key.
-          </motion.p>
-
-          <motion.p
-            className="text-sm text-[#857F75]/60 mt-2 max-w-md mx-auto"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.5, duration: 1 }}
-          >
-            AI detected 4 anomaly patterns across 140 samples. Fixed them with deterministic lambdas. Zero data lost.
-          </motion.p>
-
-          <motion.div
-            className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-red-500/10 border border-red-500/20 text-red-400/80 text-sm"
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.6, type: "spring" }}
-          >
-            <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-            Data quality matters
-          </motion.div>
-
-          {/* Before/After comparison */}
-          <motion.div
-            className="mt-12 grid grid-cols-2 gap-6 max-w-lg mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.8 }}
-          >
-            <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
-              <div className="text-[10px] uppercase tracking-wider text-red-400/60 mb-2">Before</div>
-              <div className="text-2xl font-light text-red-400/80 tabular-nums">570,377ms</div>
-              <div className="text-xs text-[#857F75]/60 mt-1">9.5 min hold time</div>
-            </div>
-            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-              <div className="text-[10px] uppercase tracking-wider text-emerald-400/60 mb-2">After</div>
-              <div className="text-2xl font-light text-emerald-400 tabular-nums">300ms</div>
-              <div className="text-xs text-[#857F75]/60 mt-1">Human limit</div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 5: THE ALCHEMY — AI Remediation
-          ENHANCED: Better visual treatment + animated SVG
-      ═══════════════════════════════════ */}
-      <section className="min-h-screen py-32 relative">
-        <div className="px-8 lg:px-24">
-          <motion.div className="max-w-3xl" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-[#857F75] mb-8">AI Data Remediation</p>
-            <h2 className="text-3xl md:text-5xl font-light text-[#F2EFE9] leading-tight mb-12">
-              4 lambda functions.<br />
-              <span className="text-emerald-400">140 samples fixed.</span><br />
-              Zero data loss.
-            </h2>
-          </motion.div>
-
-          {/* Lambda cards with SVG wave animations */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">
-            {[
-              { name: "Unit Conversion", code: "λ x: x / 1000", fixed: 14, emoji: "🔧", desc: "Seconds → milliseconds", wave: "#5b4fc4" },
-              { name: "Extreme Capping", code: "λ x: min(x, 300)", fixed: 10, emoji: "🛡️", desc: "Human physiological limit", wave: "#8b7fd4" },
-              { name: "WPM Recalc", code: "λ row: 40 * (1 - frag)", fixed: 65, emoji: "⚡", desc: "Recalculated from session", wave: "#6c5dd4" },
-              { name: "Flight Norm", code: "λ row: hold * 0.8", fixed: 27, emoji: "🎯", desc: "Unit inconsistency fixed", wave: "#7b6de4" },
-            ].map((lambda, i) => (
-              <motion.div
-                key={lambda.name}
-                className="group whimsy-glow relative p-6 rounded-xl bg-[#141420] border border-[#1c1c2e] overflow-hidden cursor-default"
-                initial={{ opacity: 0, x: -30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15, duration: 0.6 }}
-                whileHover={{ borderColor: "rgba(91, 79, 196, 0.4)", y: -2 }}
-              >
-                {/* SVG wave at bottom */}
-                <svg viewBox="0 0 400 20" className="absolute bottom-0 left-0 w-full h-4 opacity-10" preserveAspectRatio="none">
-                  <motion.path
-                    d="M 0 10 C 50 5, 100 15, 150 10 S 250 5, 300 10 S 350 15, 400 10 L 400 20 L 0 20 Z"
-                    fill={lambda.wave}
-                    initial={{ x: -400 }}
-                    whileInView={{ x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 2, delay: i * 0.3 }}
-                  />
-                </svg>
-
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">{lambda.emoji}</span>
-                  <code className="text-sm text-[#5b4fc4] font-mono">{lambda.code}</code>
-                </div>
-                <h3 className="text-[#F2EFE9] font-medium">{lambda.name}</h3>
-                <p className="text-xs text-[#857F75] mt-1">{lambda.desc}</p>
-                <div className="flex items-center gap-2 mt-3">
-                  <span className="text-xs text-[#857F75]/60">{lambda.fixed} samples</span>
-                  <span className="w-1 h-1 rounded-full bg-[#857F75]/30" />
-                  <span className="text-xs text-[#5b4fc4]/60">confidence: {(0.82 + i * 0.05).toFixed(2)}</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Validation — celebration whimsy */}
-          <motion.div
-            className="mt-16 flex items-center gap-4 p-6 rounded-xl bg-emerald-500/5 border border-emerald-500/20 cursor-pointer"
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.6, type: "spring" }}
-            whileHover={{ borderColor: "rgba(34, 197, 94, 0.4)" }}
-            onClick={() => triggerCelebration("Zero data loss — every sample accounted for! ✅")}
-          >
-            <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center pulse-soft">
-              <span className="text-emerald-400 text-lg">✓</span>
-            </div>
-            <div>
-              <p className="text-[#F2EFE9] font-medium">Reconciliation passed</p>
-              <p className="text-sm text-[#857F75]">Source: 140 = Success: 140 + Quarantine: 0</p>
-            </div>
-          </motion.div>
-
-          {/* Audit trail preview */}
-          <motion.div
-            className="mt-8 p-6 rounded-xl bg-[#0a0a0f] border border-[#1c1c2e]"
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.8 }}
-          >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-red-400/80" />
-              <div className="w-3 h-3 rounded-full bg-yellow-400/80" />
-              <div className="w-3 h-3 rounded-full bg-green-400/80" />
-              <span className="ml-2 text-[10px] text-[#857F75]">remediation_audit.json</span>
-            </div>
-            <pre className="text-xs text-[#857F75] font-mono overflow-x-auto">
-              <code>{`{
-  "row": 36,
-  "column": "hold_time_mean",
-  "old": 570377.62,
-  "new": 300.0,
-  "fix": "cap_extreme",
-  "reason": "Capped at 300ms (human physiological limit)",
-  "confidence": 0.95,
-  "lambda": "lambda x: min(x, 300) if x > 500 else x"
-}`}</code>
-            </pre>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════
-          CHAPTER 6: THE INVITATION — CTA
-          ENHANCED: More immersive with animated SVG background
-      ═══════════════════════════════════ */}
-      <section className="h-screen relative flex items-center justify-center overflow-hidden">
-        {/* Animated SVG background */}
-        <div className="absolute inset-0 pointer-events-none">
-          <svg viewBox="0 0 1440 900" className="w-full h-full" preserveAspectRatio="xMidYMid slice" fill="none">
-            {/* Concentric circles expanding */}
-            {[200, 350, 500, 650, 800].map((r, i) => (
-              <motion.circle
-                key={i}
-                cx="720"
-                cy="450"
-                r={r}
-                stroke="#5b4fc4"
-                strokeWidth="0.5"
-                opacity="0.1"
-                initial={{ scale: 0.5, opacity: 0 }}
-                whileInView={{ scale: 1, opacity: 0.1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.2, duration: 1 }}
-              >
-                <animate attributeName="r" values={`${r};${r + 50};${r}`} dur={`${4 + i}s`} repeatCount="indefinite" />
-                <animate attributeName="opacity" values="0.1;0.05;0.1" dur={`${4 + i}s`} repeatCount="indefinite" />
-              </motion.circle>
-            ))}
-            {/* Pulse wave */}
-            <motion.path
-              d="M 200 450 C 400 400, 500 500, 720 450 S 1040 400, 1240 450"
-              stroke="#5b4fc4"
-              strokeWidth="1"
-              opacity="0.15"
-              initial={{ pathLength: 0 }}
-              whileInView={{ pathLength: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 2, delay: 1 }}
-            />
-          </svg>
-        </div>
-
-        {/* Ambient orbs */}
-        <motion.div className="absolute top-1/4 left-1/4 w-64 h-64 rounded-full bg-[#5b4fc4]/10 blur-3xl pointer-events-none" animate={{ x: [0, 30, 0], y: [0, -20, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-[#5b4fc4]/5 blur-3xl pointer-events-none" animate={{ x: [0, -20, 0], y: [0, 30, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 2 }} />
-
-        <motion.div className="text-center px-8 relative z-10" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true, margin: "-30%" }} transition={{ duration: 1.5 }}>
-          <p className="text-[11px] uppercase tracking-[0.3em] text-[#857F75] mb-8">
-            Ready to know yourself?
-          </p>
-
-          <h2 className="text-4xl md:text-6xl font-light text-[#F2EFE9] leading-tight mb-8">
-            7 days.<br />
-            <span className="text-[#5b4fc4]">Your baseline.</span>
-          </h2>
-
-          <p className="text-[#857F75] max-w-md mx-auto mb-12">
-            MindPulse learns your unique rhythm. After calibration, it can highlight behavioral changes worth checking in on.
-          </p>
-
-          <motion.button
-            className="group whimsy-glow relative inline-flex items-center gap-3 px-8 py-4 rounded-full bg-[#F2EFE9] text-[#0a0a0f] font-medium text-sm overflow-hidden"
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => { triggerCelebration("Welcome to your rhythm journey! 🎵"); router.push("/signup"); }}
-          >
-            <span>Start calibration</span>
-            <ArrowUpRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </motion.button>
-
-          {/* Trust indicators */}
-          <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-[11px] text-[#857F75]/40">
-            <span>No credit card required</span>
-            <span className="w-1 h-1 rounded-full bg-[#857F75]/20" />
-            <span>Open source</span>
-            <span className="w-1 h-1 rounded-full bg-[#857F75]/20" />
-            <span>You control your stored behavioral data</span>
-          </div>
-
-          <motion.div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-[10px] text-[#857F75]/40" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: 1 }}>
-            MindPulse v1.0 — Open Source — Privacy First
-          </motion.div>
-        </motion.div>
-      </section>
+      <span className="text-sm font-semibold tracking-[-0.03em] text-[#F4F6FB]">MindPulse</span>
     </div>
   );
 }
 
-// ═══════════════════════════════════════════════
-// ANIMATED SVG COMPONENTS
-// ═══════════════════════════════════════════════
+function Dot({ tone = "violet" }: { tone?: "violet" | "mint" | "amber" }) {
+  const colors = {
+    violet: "bg-[#8b7cf6] shadow-[0_0_12px_rgba(139,124,246,0.9)]",
+    mint: "bg-[#54d6a0] shadow-[0_0_12px_rgba(84,214,160,0.8)]",
+    amber: "bg-[#f0b35b] shadow-[0_0_12px_rgba(240,179,91,0.7)]",
+  };
+  return <span className={`inline-block h-1.5 w-1.5 rounded-full ${colors[tone]}`} />;
+}
 
-function MindPulseLogo() {
+function SignalPreview() {
   return (
-    <div className="flex items-center gap-4">
-      <svg viewBox="0 0 60 60" className="w-14 h-14" fill="none">
-        <defs>
-          <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#5b4fc4" />
-            <stop offset="100%" stopColor="#8b7fd4" />
-          </linearGradient>
-          <filter id="logoGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <circle cx="30" cy="30" r="26" stroke="url(#logoGrad)" strokeWidth="1" opacity="0.3">
-          <><animate attributeName="r" values="26;28;26" dur="3s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" /><animate attributeName="opacity" values="0.3;0.15;0.3" dur="3s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" /></>
-        </circle>
-        <motion.path d="M 8 30 L 18 30 L 22 30 L 25 20 L 28 40 L 31 15 L 34 38 L 37 25 L 40 30 L 52 30" stroke="url(#logoGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" filter="url(#logoGlow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.5, delay: 0.3, ease: EASE_OUT }} />
-        <circle cx="30" cy="30" r="3" fill="url(#logoGrad)">
-          <animate attributeName="r" values="3;4;3" dur="2s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" />
-        </circle>
-      </svg>
-      <div>
-        <span className="text-2xl font-light text-[#F2EFE9] tracking-tight">Mind</span>
-        <span className="text-2xl font-light text-[#5b4fc4] tracking-tight">Pulse</span>
+    <div className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[#101527]/80 p-5 shadow-[0_35px_100px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_75%_0%,rgba(139,124,246,0.23),transparent_36%),radial-gradient(circle_at_15%_100%,rgba(84,214,160,0.12),transparent_28%)]" />
+      <div className="relative">
+        <div className="mb-7 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#AAB4CF]">
+            <Dot tone="amber" /> Live signal
+          </div>
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] text-[#AAB4CF]">Window 00:18</span>
+        </div>
+
+        <div className="rounded-2xl border border-[#f0b35b]/25 bg-[#f0b35b]/[0.06] p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold text-[#F4F6FB]">Waiting for a useful signal</p>
+              <p className="mt-1 max-w-[18rem] text-xs leading-5 text-[#AAB4CF]">More measured activity is needed before MindPulse can describe a trend.</p>
+            </div>
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#f0b35b]/15 text-[#f0b35b]"><Activity className="h-4 w-4" /></div>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-[1.25fr_.75fr] gap-3">
+          <div className="rounded-2xl border border-white/8 bg-[#080b15]/70 p-4">
+            <div className="flex items-center justify-between"><span className="text-[10px] uppercase tracking-[0.16em] text-[#7E89A6]">Activity trace</span><span className="text-[10px] text-[#54d6a0]">measured</span></div>
+            <svg viewBox="0 0 260 68" className="mt-5 h-16 w-full" fill="none" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 51C17 50 20 46 33 46c17 0 17-27 34-27 18 0 15 35 35 35 20 0 15-15 34-15 14 0 20-24 35-24 19 0 10 39 31 39 17 0 19-12 29-12 12 0 14 7 29 7" stroke="url(#trace)" strokeWidth="3" strokeLinecap="round" />
+              <defs><linearGradient id="trace" x1="0" y1="0" x2="260" y2="0"><stop stopColor="#8b7cf6" /><stop offset="1" stopColor="#54d6a0" /></linearGradient></defs>
+            </svg>
+            <div className="mt-3 flex justify-between text-[10px] text-[#7E89A6]"><span>quiet</span><span>current window</span></div>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-[#080b15]/70 p-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[#7E89A6]">Context</p>
+            <p className="mt-4 text-2xl font-medium tracking-[-0.06em] text-[#F4F6FB]">—</p>
+            <p className="mt-1 text-[10px] leading-4 text-[#7E89A6]">No label until the input is meaningful.</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function EnergyOrb({ konami }: { konami: boolean }) {
-  return (
-    <div className="relative w-80 h-80">
-      <svg viewBox="0 0 320 320" className="w-full h-full" fill="none">
-        <defs>
-          <radialGradient id="orbCore" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor={konami ? "#8b7fd4" : "#5b4fc4"} stopOpacity="0.3" />
-            <stop offset="60%" stopColor={konami ? "#8b7fd4" : "#5b4fc4"} stopOpacity="0.1" />
-            <stop offset="100%" stopColor={konami ? "#8b7fd4" : "#5b4fc4"} stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#5b4fc4" stopOpacity="0.6" />
-            <stop offset="50%" stopColor="#8b7fd4" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#5b4fc4" stopOpacity="0.2" />
-          </linearGradient>
-          <filter id="orbGlow" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="4" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <circle cx="160" cy="160" r="120" fill="url(#orbCore)">
-          <animate attributeName="r" values="120;130;120" dur="4s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" />
-        </circle>
-        <g>
-          <ellipse cx="160" cy="160" rx="100" ry="40" stroke="url(#ringGrad)" strokeWidth="0.8" fill="none" opacity="0.6" filter="url(#orbGlow)">
-            <animateTransform attributeName="transform" type="rotate" from="0 160 160" to="360 160 160" dur="20s" repeatCount="indefinite" />
-          </ellipse>
-          <ellipse cx="160" cy="160" rx="110" ry="50" stroke="url(#ringGrad)" strokeWidth="0.5" fill="none" opacity="0.3">
-            <animateTransform attributeName="transform" type="rotate" from="120 160 160" to="480 160 160" dur="28s" repeatCount="indefinite" />
-          </ellipse>
-          <ellipse cx="160" cy="160" rx="90" ry="60" stroke="#8b7fd4" strokeWidth="0.4" fill="none" opacity="0.2">
-            <animateTransform attributeName="transform" type="rotate" from="240 160 160" to="600 160 160" dur="35s" repeatCount="indefinite" />
-          </ellipse>
-        </g>
-        <motion.path d="M 40 160 C 60 160, 80 140, 100 160 S 130 180, 150 160 S 180 130, 200 160 S 230 190, 260 160 S 280 150, 300 160" stroke="#5b4fc4" strokeWidth="1.5" fill="none" opacity="0.5" filter="url(#orbGlow)" initial={{ pathLength: 0 }} animate={{ pathLength: 1, opacity: 0.5 }} transition={{ duration: 2, delay: 1, ease: EASE_OUT }} />
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((angle, i) => {
-          const rad = (angle * Math.PI) / 180;
-          const r = 70 + (i % 3) * 20;
-          const cx = 160 + Math.cos(rad) * r;
-          const cy = 160 + Math.sin(rad) * r;
-          return (
-            <g key={i}>
-              <circle cx={cx} cy={cy} r="2" fill="#5b4fc4" opacity="0.6">
-                <animate attributeName="opacity" values="0.6;1;0.6" dur={`${2 + i * 0.3}s`} repeatCount="indefinite" />
-                <animate attributeName="r" values="2;3;2" dur={`${2 + i * 0.3}s`} repeatCount="indefinite" />
-              </circle>
-              <line x1={cx} y1={cy} x2="160" y2="160" stroke="#5b4fc4" strokeWidth="0.3" opacity="0.15">
-                <animate attributeName="opacity" values="0.15;0.3;0.15" dur={`${3 + i * 0.2}s`} repeatCount="indefinite" />
-              </line>
-            </g>
-          );
-        })}
-        <text x="160" y="155" textAnchor="middle" fill="#F2EFE9" fontSize="28" fontWeight="300" fontFamily="system-ui">72</text>
-        <text x="160" y="175" textAnchor="middle" fill="#857F75" fontSize="8" fontWeight="500" fontFamily="system-ui" letterSpacing="0.15em">ENERGY</text>
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <motion.div className="w-72 h-72 rounded-full border border-[#5b4fc4]/20" animate={{ scale: [1, 1.08, 1], opacity: [0.3, 0.1, 0.3] }} transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }} />
-      </div>
-    </div>
-  );
-}
-
-function BreathingCircles() {
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
-      <svg viewBox="0 0 1440 900" className="w-full h-full" preserveAspectRatio="xMidYMid slice" fill="none">
-        <defs>
-          <radialGradient id="breathe1" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#5b4fc4" stopOpacity="0.04" />
-            <stop offset="100%" stopColor="#5b4fc4" stopOpacity="0" />
-          </radialGradient>
-          <radialGradient id="breathe2" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#8b7fd4" stopOpacity="0.03" />
-            <stop offset="100%" stopColor="#8b7fd4" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        <circle cx="1200" cy="200" r="200" fill="url(#breathe1)">
-          <animate attributeName="r" values="200;260;200" dur="6s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" />
-        </circle>
-        <circle cx="300" cy="700" r="150" fill="url(#breathe2)">
-          <animate attributeName="r" values="150;200;150" dur="8s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" />
-        </circle>
-        <circle cx="800" cy="400" r="100" fill="url(#breathe1)" opacity="0.5">
-          <animate attributeName="r" values="100;130;100" dur="5s" calcMode="spline" keySplines="0.4 0 0.6 1;0.4 0 0.6 1" repeatCount="indefinite" />
-        </circle>
-      </svg>
-    </div>
-  );
-}
-
-function TypingHeadline({ text, secondLine }: { text: string; secondLine: string }) {
-  const [displayed, setDisplayed] = useState("");
-  const [secondDisplayed, setSecondDisplayed] = useState("");
-  const [showCursor, setShowCursor] = useState(true);
-
-  useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < text.length) {
-        setDisplayed(text.slice(0, i + 1));
-        i++;
-      } else {
-        clearInterval(interval);
-        let j = 0;
-        const interval2 = setInterval(() => {
-          if (j < secondLine.length) {
-            setSecondDisplayed(secondLine.slice(0, j + 1));
-            j++;
-          } else {
-            clearInterval(interval2);
-            setTimeout(() => setShowCursor(false), 2000);
-          }
-        }, 80);
-        return () => clearInterval(interval2);
-      }
-    }, 70);
-    return () => clearInterval(interval);
-  }, [text, secondLine]);
+export default function LandingPage() {
+  const router = useRouter();
+  const start = () => router.push("/signup");
 
   return (
-    <h1 className="text-[clamp(2.2rem,5vw,4.5rem)] leading-[0.95] tracking-tight">
-      <span className="text-[#F2EFE9]">{displayed}</span>
-      <br />
-      <span className="text-[#5b4fc4] italic font-light">
-        {secondDisplayed}
-        {showCursor && <span className="typing-cursor" />}
-      </span>
-    </h1>
+    <main className="min-h-screen overflow-hidden bg-[#080a12] text-[#F4F6FB]">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_15%_0%,rgba(139,124,246,0.20),transparent_31rem),radial-gradient(circle_at_93%_20%,rgba(84,214,160,0.10),transparent_26rem),linear-gradient(180deg,#080a12_0%,#0a0e1a_46%,#080a12_100%)]" />
+      <div className="pointer-events-none fixed inset-0 -z-10 opacity-[0.045] [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)] [background-size:48px_48px]" />
+
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
+        <Mark />
+        <div className="hidden items-center gap-7 text-xs text-[#AAB4CF] md:flex">
+          <a href="#how-it-works" className="transition hover:text-white">How it works</a>
+          <a href="#privacy" className="transition hover:text-white">Privacy</a>
+          <a href="#states" className="transition hover:text-white">Signal states</a>
+        </div>
+        <button onClick={start} className="group inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-xs font-medium text-white transition hover:border-white/25 hover:bg-white/[0.1] active:scale-[0.98]">
+          Start privately <ArrowUpRight className="h-3.5 w-3.5 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </button>
+      </nav>
+
+      <section className="mx-auto grid max-w-7xl items-center gap-12 px-5 pb-24 pt-16 lg:grid-cols-[1.02fr_.98fr] lg:px-8 lg:pb-32 lg:pt-24">
+        <motion.div {...reveal}>
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#8b7cf6]/25 bg-[#8b7cf6]/[0.08] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C8C3FF]"><Sparkles className="h-3 w-3" /> Behavioral intelligence, deliberately quiet</div>
+          <h1 className="max-w-3xl text-5xl font-medium leading-[0.98] tracking-[-0.075em] text-[#F7F8FC] sm:text-6xl lg:text-7xl">
+            Understand the workday you&apos;re <span className="bg-gradient-to-r from-[#b8b1ff] to-[#61d9a8] bg-clip-text text-transparent">actually having.</span>
+          </h1>
+          <p className="mt-7 max-w-xl text-base leading-7 text-[#AAB4CF] sm:text-lg">
+            MindPulse turns interaction timing into a private, personal rhythm signal—then makes it clear when it has enough context to be useful and when it does not.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <button onClick={start} className="group inline-flex items-center gap-3 rounded-full bg-[#F4F6FB] px-5 py-3.5 text-sm font-semibold text-[#090B12] shadow-[0_16px_40px_rgba(244,246,251,0.12)] transition hover:bg-white active:scale-[0.98]">
+              Begin your baseline <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            </button>
+            <a href="#states" className="inline-flex items-center gap-2 rounded-full border border-white/12 px-5 py-3.5 text-sm font-medium text-[#D5DAE8] transition hover:border-white/25 hover:bg-white/[0.04]">See the product logic <ChevronRight className="h-4 w-4" /></a>
+          </div>
+          <div className="mt-12 grid max-w-xl grid-cols-3 gap-3 border-t border-white/10 pt-6">
+            {[['No content', 'Typed text is not persisted'], ['Four states', 'No fake certainty'], ['Your control', 'Pause, export, delete']].map(([number, label]) => (
+              <div key={number}><p className="text-sm font-semibold text-[#F4F6FB]">{number}</p><p className="mt-1 text-[11px] leading-4 text-[#7E89A6]">{label}</p></div>
+            ))}
+          </div>
+        </motion.div>
+        <motion.div {...reveal} transition={{ duration: 0.8, delay: 0.12, ease: EASE }} className="relative">
+          <div className="absolute -inset-12 rounded-full bg-[#8b7cf6]/10 blur-3xl" />
+          <SignalPreview />
+          <div className="relative mx-auto -mt-5 w-[86%] rounded-2xl border border-white/10 bg-[#0d1220]/95 p-3 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center gap-3"><div className="grid h-8 w-8 place-items-center rounded-lg bg-[#54d6a0]/10 text-[#54d6a0]"><ShieldCheck className="h-4 w-4" /></div><p className="text-xs leading-5 text-[#BAC3DA]"><span className="font-semibold text-[#F4F6FB]">The design principle:</span> a signal is only useful when its limits are visible.</p></div>
+          </div>
+        </motion.div>
+      </section>
+
+      <section id="how-it-works" className="border-y border-white/[0.08] bg-white/[0.02]">
+        <div className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+          <motion.div {...reveal} className="max-w-2xl"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8b7cf6]">A different kind of dashboard</p><h2 className="mt-4 text-3xl font-medium tracking-[-0.055em] text-white sm:text-5xl">Less theatre. More context.</h2><p className="mt-5 text-base leading-7 text-[#AAB4CF]">Most wellbeing products make a bold claim from a thin slice of activity. MindPulse is designed to qualify the input first, then present a useful trend only when the data supports it.</p></motion.div>
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
+            {[
+              { icon: <MousePointer2 className="h-5 w-5" />, title: "Observe timing", body: "Interaction timing and movement patterns are summarized in short windows. Typed content is not persisted." },
+              { icon: <CircleDot className="h-5 w-5" />, title: "Qualify the signal", body: "Sparse activity, early calibration, and a ready personal baseline are distinct states—not the same score with different colors." },
+              { icon: <Sparkles className="h-5 w-5" />, title: "Guide, never diagnose", body: "The product offers an optional check-in or gentle intervention. You remain the authority on your context." },
+            ].map((item, index) => <motion.article {...reveal} transition={{ duration: 0.55, delay: index * 0.08, ease: EASE }} key={item.title} className="group rounded-3xl border border-white/10 bg-[#101527]/70 p-6 transition hover:-translate-y-1 hover:border-[#8b7cf6]/35 hover:bg-[#12192c]">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/[0.05] text-[#B8B1FF]">{item.icon}</div><p className="mt-8 text-lg font-semibold tracking-[-0.03em] text-white">{item.title}</p><p className="mt-3 text-sm leading-6 text-[#9BA7C2]">{item.body}</p><span className="mt-7 inline-flex items-center gap-1 text-xs font-medium text-[#B8B1FF]">0{index + 1} <ChevronRight className="h-3.5 w-3.5" /></span>
+            </motion.article>)}
+          </div>
+        </div>
+      </section>
+
+      <section id="states" className="mx-auto max-w-7xl px-5 py-20 lg:px-8 lg:py-28">
+        <div className="grid gap-12 lg:grid-cols-[.86fr_1.14fr] lg:items-start"><motion.div {...reveal}><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#54d6a0]">Signal integrity</p><h2 className="mt-4 text-3xl font-medium tracking-[-0.055em] text-white sm:text-5xl">A dashboard that knows when not to speak.</h2><p className="mt-5 text-base leading-7 text-[#AAB4CF]">The live surface does not invent a score for an empty window. It identifies the quality of the input, the maturity of the baseline, and the right next step.</p><button onClick={start} className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-[#C8C3FF] transition hover:text-white">Experience the four states <ArrowUpRight className="h-4 w-4" /></button></motion.div>
+          <motion.div {...reveal} transition={{ duration: 0.8, delay: 0.1, ease: EASE }} className="grid gap-3 sm:grid-cols-2">
+            {[
+              { tone: "border-white/10", status: "No live window", detail: "Nothing has been measured in the current interval.", chip: "Waiting", icon: <Activity className="h-4 w-4" /> },
+              { tone: "border-[#f0b35b]/30", status: "Insufficient activity", detail: "A quiet window is not interpreted as calm or low strain.", chip: "Abstain", icon: <EyeOff className="h-4 w-4" /> },
+              { tone: "border-[#8b7cf6]/35", status: "Calibrating", detail: "Early activity is visible, while the personal baseline is still learning.", chip: "Early trend", icon: <Keyboard className="h-4 w-4" /> },
+              { tone: "border-[#54d6a0]/35", status: "Ready", detail: "Measured activity can be read against a sufficiently established personal baseline.", chip: "Contextual", icon: <Check className="h-4 w-4" /> },
+            ].map((state) => <div key={state.status} className={`rounded-2xl border ${state.tone} bg-[#101527]/70 p-5`}><div className="flex items-center justify-between"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white/[0.05] text-[#D7D3FF]">{state.icon}</span><span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[10px] text-[#B8C1D8]">{state.chip}</span></div><p className="mt-7 text-sm font-semibold text-white">{state.status}</p><p className="mt-2 text-xs leading-5 text-[#9BA7C2]">{state.detail}</p></div>)}
+          </motion.div>
+        </div>
+      </section>
+
+      <section id="privacy" className="border-t border-white/[0.08] bg-[#0B0F1B]">
+        <div className="mx-auto grid max-w-7xl gap-10 px-5 py-20 lg:grid-cols-2 lg:px-8 lg:py-28"><motion.div {...reveal} className="rounded-[2rem] border border-white/10 bg-[linear-gradient(145deg,rgba(139,124,246,.15),rgba(16,21,39,.88)_42%,rgba(16,21,39,.7))] p-7 sm:p-9"><div className="grid h-11 w-11 place-items-center rounded-xl bg-white/[0.07] text-[#B8B1FF]"><ShieldCheck className="h-5 w-5" /></div><h2 className="mt-14 text-3xl font-medium tracking-[-0.055em] text-white sm:text-4xl">Private by design. Clear by default.</h2><p className="mt-5 max-w-md text-sm leading-7 text-[#AAB4CF]">You can pause collection on a device, export the behavioral data stored by the service, or delete it while keeping your account. The product explains what it stores instead of hiding it in a promise.</p><div className="mt-10 space-y-3">{['Typed content is not persisted', 'Tracking can be paused instantly', 'Export and deletion are in-product controls'].map((item) => <div className="flex items-center gap-3 text-sm text-[#D9DDEA]" key={item}><span className="grid h-5 w-5 place-items-center rounded-full bg-[#54d6a0]/10 text-[#54d6a0]"><Check className="h-3 w-3" /></span>{item}</div>)}</div></motion.div>
+          <motion.div {...reveal} transition={{ duration: 0.8, delay: 0.1, ease: EASE }} className="flex flex-col justify-center"><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#8b7cf6]">Built for everyday work</p><h3 className="mt-4 text-3xl font-medium tracking-[-0.055em] text-white sm:text-5xl">A softer relationship with your attention.</h3><p className="mt-5 max-w-xl text-base leading-7 text-[#AAB4CF]">For people who want a clearer view of their workday without being watched, diagnosed, or pushed into a productivity contest.</p><div className="mt-9 flex flex-wrap gap-3"><button onClick={start} className="inline-flex items-center gap-2 rounded-full bg-[#8b7cf6] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#9b90f8] active:scale-[0.98]">Create your private baseline <ArrowUpRight className="h-4 w-4" /></button><a href="#how-it-works" className="inline-flex items-center gap-2 rounded-full border border-white/10 px-5 py-3.5 text-sm text-[#D9DDEA] transition hover:bg-white/[0.04]">How it works</a></div></motion.div>
+        </div>
+      </section>
+
+      <footer className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-xs text-[#7E89A6] sm:flex-row sm:items-center sm:justify-between lg:px-8"><Mark /><div className="flex flex-wrap gap-x-5 gap-y-2"><span>MindPulse v1.0</span><span>Behavioral signals, not diagnoses</span><span>Privacy controls included</span></div></footer>
+    </main>
   );
 }

@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import dynamic from "next/dynamic";
+import { Activity } from "lucide-react";
 import { useStressStream } from "@/hooks/use-stress-stream";
 import { useFeatureCollector } from "@/hooks/use-feature-collector";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api";
-import type { UserStats, InterventionRecommendation, StressResult } from "@/lib/types";
+import type { InterventionRecommendation, StressResult } from "@/lib/types";
 
 type TrendPoint = { day: string; stress: number; energy: number; wpm: number; errors: number };
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Legend, Area, AreaChart
+  Tooltip, ResponsiveContainer, Legend
 } from "recharts";
 
 const SOFT_LEVEL: Record<string, string> = {
@@ -35,7 +35,7 @@ function MiniGauge({
   warnColor,
   warnThreshold,
 }: {
-  value: number;
+  value: number | null;
   maxValue: number;
   label: string;
   unit: string;
@@ -43,8 +43,8 @@ function MiniGauge({
   warnColor?: string;
   warnThreshold?: number;
 }) {
-  const fraction = Math.max(0, Math.min(1, value / maxValue));
-  const isWarn = warnThreshold !== undefined && value > warnThreshold;
+  const fraction = value === null ? 0 : Math.max(0, Math.min(1, value / maxValue));
+  const isWarn = value !== null && warnThreshold !== undefined && value > warnThreshold;
   const activeColor = isWarn && warnColor ? warnColor : color;
 
   const arcR = 40;
@@ -88,7 +88,7 @@ function MiniGauge({
           fontWeight="700"
           fontFamily="system-ui, sans-serif"
         >
-          {value > 0 ? (unit === "WPM" ? Math.round(value) : value.toFixed(1)) : "--"}
+          {value === null ? "—" : unit === "WPM" ? Math.round(value) : value.toFixed(1)}
         </text>
         <text
           x={cx}
@@ -109,15 +109,41 @@ function MiniGauge({
 }
 
 // ─── SVG Semi-circle Gauge (Energy) ───
-function EnergyGauge({ score, level, deviationLevel, stressProbability, trend }: {
+function EnergyGauge({ score, level, deviationLevel, stressProbability, trend, signalState }: {
   score: number;
   level: string;
   deviationLevel?: string;
   stressProbability?: number | null;
   trend?: string;
+  signalState?: StressResult["signal_state"];
 }) {
   const energy = energyFromStress(score);
   const softLevel = SOFT_LEVEL[level] ?? level;
+
+  if (signalState !== "READY") {
+    const isCalibrating = signalState === "CALIBRATING";
+    const isSparse = signalState === "INSUFFICIENT_ACTIVITY";
+    const title = isCalibrating
+      ? "Learning your rhythm"
+      : isSparse
+        ? "No conclusion from this window"
+        : "Waiting for a live window";
+    const detail = isCalibrating
+      ? "An early activity sample is available, but your baseline is not mature enough for a personal energy reading."
+      : isSparse
+        ? "Quiet or limited activity is not treated as a signal about how you feel."
+        : "Interact normally for a short interval. MindPulse will only show a result when the input is meaningful.";
+    return (
+      <div className="flex min-h-[205px] max-w-[280px] flex-col justify-center text-center">
+        <div className={`mx-auto grid h-12 w-12 place-items-center rounded-2xl border ${isCalibrating ? "border-[#8b7cf6]/30 bg-[#8b7cf6]/10 text-[#b8b1ff]" : "border-[#f0b35b]/30 bg-[#f0b35b]/10 text-[#f0b35b]"}`}>
+          <Activity className="h-5 w-5" />
+        </div>
+        <p className="mt-5 text-base font-semibold tracking-[-0.02em] text-[#F4F6FB]">{title}</p>
+        <p className="mt-2 text-xs leading-5 text-[#8E99B2]">{detail}</p>
+        <span className="mt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8E99B2]">{isCalibrating ? "Early trend · not personalized" : "Current window · no estimate"}</span>
+      </div>
+    );
+  }
 
   const gradientId =
     level === "NEUTRAL"
@@ -365,8 +391,6 @@ export default function TrackingPage() {
   );
 
   useFeatureCollector(wsSend, userId, 30000);
-  const [stats, setStats] = useState<UserStats | null>(null);
-  const [polledData, setPolledData] = useState<StressResult | null>(null);
   const [trendData, setTrendData] = useState<TrendPoint[]>([]);
   const prevLevelRef = useRef<string>("UNKNOWN");
   const notifPermissionRef = useRef<boolean>(false);
@@ -389,7 +413,13 @@ export default function TrackingPage() {
   } | null>(null);
   const [windDownDismissed, setWindDownDismissed] = useState(false);
 
-  const data = wsData || polledData;
+  // A current dashboard reading is intentionally WebSocket-only. Historical
+  // sessions are not silently presented as a live state.
+  const data = wsData;
+  const signalState = data?.signal_state;
+  const hasCurrentWindow = Boolean(data && signalState);
+  const isReady = signalState === "READY";
+  const readyHistory = wsHistory.filter((point) => point.signal_state === "READY");
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -402,13 +432,6 @@ export default function TrackingPage() {
       }
     }
   }, []);
-
-  useEffect(() => {
-    const fetchStats = () => api.stats(userId).then(setStats).catch(() => {});
-    fetchStats();
-    const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, [userId]);
 
   // Load 21-day trend data
   useEffect(() => {
@@ -446,45 +469,6 @@ export default function TrackingPage() {
   }, [userId]);
 
   useEffect(() => {
-    const pollLatest = async () => {
-      try {
-        const h = await api.history(userId, 0.1);
-        if (h.length > 0) {
-          const latest = h[h.length - 1];
-          setPolledData((prev) => {
-            if (!prev || latest.timestamp > prev.timestamp) {
-              return {
-                score: latest.score,
-                level: latest.level as StressResult["level"],
-                confidence: 0.5,
-                probabilities: {},
-                feature_contributions: {},
-                insights: latest.insights,
-                timestamp: latest.timestamp,
-                typing_speed_wpm: latest.typing_speed_wpm || 0,
-                rage_click_count: latest.rage_click_count || 0,
-                error_rate: latest.error_rate || 0,
-                click_count: latest.click_count || 0,
-                mouse_speed_mean: latest.mouse_speed_mean || 0,
-                mouse_reentry_count: latest.mouse_reentry_count || 0,
-                mouse_reentry_latency_ms: latest.mouse_reentry_latency_ms || 0,
-                alert_state: "NORMAL" as const,
-                intervention: null,
-                trend: "steady" as const,
-                recovery_score: 0,
-              };
-            }
-            return prev;
-          });
-        }
-      } catch {}
-    };
-    pollLatest();
-    const interval = setInterval(pollLatest, 5000);
-    return () => clearInterval(interval);
-  }, [userId]);
-
-  useEffect(() => {
     api
       .interventionRecommendation(userId)
       .then((res) => {
@@ -505,7 +489,7 @@ export default function TrackingPage() {
   }, [breakSeconds]);
 
   useEffect(() => {
-    if (!data) return;
+    if (!data || data.signal_state !== "READY") return;
     if (data.alert_state) setAlertState(data.alert_state);
     if (data.intervention) setIntervention(data.intervention);
 
@@ -549,15 +533,21 @@ export default function TrackingPage() {
     return () => clearInterval(interval);
   }, [userId, windDownDismissed]);
 
-  const score = data?.score ?? 0;
-  const level = data?.level ?? "UNKNOWN";
-  const insights = data?.insights ?? [];
+  const score = isReady ? data?.score ?? 0 : 0;
+  const level = isReady ? data?.level ?? "UNKNOWN" : "UNKNOWN";
+  const insights = isReady ? data?.insights ?? [] : [];
 
-  const liveWpm = data?.typing_speed_wpm ?? 0;
-  const liveRageClicks = data?.rage_click_count ?? 0;
-  const liveErrorRate = data?.error_rate ?? 0;
-  const liveClicks = data?.click_count ?? 0;
-  const liveMouseSpeed = data?.mouse_speed_mean ?? 0;
+  // Current-window metrics are never backfilled from long-term stats.
+  const currentWpm = data?.typing_speed_wpm ?? 0;
+  const currentRageClicks = data?.rage_click_count ?? 0;
+  const currentErrorRate = data?.error_rate ?? 0;
+  const currentMouseSpeed = data?.mouse_speed_mean ?? 0;
+  // During calibration, a zero can mean that a category was not observed at
+  // all. Keep it unavailable instead of presenting it as an interpreted metric.
+  const liveWpm = hasCurrentWindow && (isReady || currentWpm > 0) ? currentWpm : null;
+  const liveRageClicks = hasCurrentWindow && (isReady || currentRageClicks > 0) ? currentRageClicks : null;
+  const liveErrorRate = hasCurrentWindow && (isReady || currentErrorRate > 0) ? currentErrorRate * 100 : null;
+  const liveMouseSpeed = hasCurrentWindow && (isReady || currentMouseSpeed > 0) ? currentMouseSpeed : null;
 
   const formatBreakTimer = (total: number) => {
     const m = String(Math.floor(total / 60)).padStart(2, "0");
@@ -572,16 +562,30 @@ export default function TrackingPage() {
     RECOVERY: { border: "rgba(34,197,94,0.3)", bg: "rgba(34,197,94,0.05)" },
   };
 
-  const bannerStyle = alertBannerStyles[alertState] ?? alertBannerStyles.NORMAL;
+  const effectiveAlertState = isReady ? alertState : "NORMAL";
+  const bannerStyle = alertBannerStyles[effectiveAlertState] ?? alertBannerStyles.NORMAL;
 
-  const alertTitle =
-    alertState === "BREAK_RECOMMENDED"
-      ? "A break might help"
-      : alertState === "EARLY_WARNING"
-        ? "Energy dipping"
-        : alertState === "RECOVERY"
-          ? "Recovering nicely"
-          : "Stable rhythm";
+  const statusTitle = !hasCurrentWindow
+    ? "Waiting for a live activity window"
+    : signalState === "INSUFFICIENT_ACTIVITY"
+      ? "This window is too quiet to interpret"
+      : signalState === "CALIBRATING"
+        ? "Early signal — personalization is still learning"
+        : effectiveAlertState === "BREAK_RECOMMENDED"
+          ? "A break might help"
+          : effectiveAlertState === "EARLY_WARNING"
+            ? "A shift in your rhythm is emerging"
+            : effectiveAlertState === "RECOVERY"
+              ? "Your recent pattern is recovering"
+              : "Current window is within your baseline";
+
+  const statusDetail = !hasCurrentWindow
+    ? "Move, type, or work normally for a short interval. No current conclusion is being shown."
+    : signalState === "INSUFFICIENT_ACTIVITY"
+      ? "A quiet window is not interpreted as calm, focused, or low strain."
+      : signalState === "CALIBRATING"
+        ? "The data is visible, but your personal baseline is not mature enough for a settled reading."
+        : `Current personalized signal · confidence ${((data?.confidence ?? 0) * 100).toFixed(0)}%${data?.trend ? ` · ${data.trend}` : ""}`;
 
   return (
     <div className="p-8 space-y-8 max-w-6xl mx-auto" style={{ background: "#0a0a0f" }}>
@@ -601,7 +605,6 @@ export default function TrackingPage() {
           <button
             onClick={async () => {
               await api.reset(userId);
-              setStats(null);
             }}
             className="px-4 py-2 rounded-lg border text-xs font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
             style={{
@@ -641,41 +644,18 @@ export default function TrackingPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-medium" style={{ color: "#F2EFE9" }}>
-              {alertTitle}
+              {statusTitle}
             </h3>
             <p className="text-xs mt-1" style={{ color: "#857F75" }}>
-              {data?.trend ? `Trend: ${data.trend}` : "Trend: steady"} · Confidence:{" "}
-              {data ? `${(data.confidence * 100).toFixed(1)}%` : "--"}
-              {data?.recovery_score
-                ? ` · Recovery +${data.recovery_score.toFixed(1)}`
-                : ""}
+              {statusDetail}
             </p>
           </div>
           <div className="text-xs" style={{ color: "#857F75" }}>
-            {intervention?.expected_benefit || "No intervention needed right now"}
+            {isReady ? intervention?.expected_benefit || "No action suggested from this window" : "MindPulse is qualifying the input before offering guidance"}
           </div>
         </div>
       </div>
 
-      {data?.signal_state && data.signal_state !== "READY" && (
-        <div
-          className="rounded-lg border p-4"
-          style={{
-            borderColor:
-              data.signal_state === "INSUFFICIENT_ACTIVITY" ? "#f0b35b66" : "#8b7cf666",
-            background:
-              data.signal_state === "INSUFFICIENT_ACTIVITY" ? "rgba(240,179,91,0.08)" : "rgba(139,124,246,0.08)",
-          }}
-          role="status"
-        >
-          <p className="text-sm font-medium" style={{ color: "#F4F6FB" }}>
-            {data.signal_state === "CALIBRATING" ? "Personalization is still learning" : "Waiting for more activity"}
-          </p>
-          <p className="mt-1 text-xs" style={{ color: "#8E99B2" }}>
-            {data.signal_message || "MindPulse will show a clearer behavioral trend once enough relevant activity is available."}
-          </p>
-        </div>
-      )}
 
       {/* Wind-Down Banner */}
       {windDown && !windDownDismissed && (
@@ -720,7 +700,7 @@ export default function TrackingPage() {
       )}
 
       {/* Sticky Active Intervention Panel */}
-      {(alertState === "BREAK_RECOMMENDED" || activeIntervention) &&
+      {isReady && (alertState === "BREAK_RECOMMENDED" || activeIntervention) &&
         intervention && (
           <div
             className="sticky top-4 z-10 rounded-lg border p-5"
@@ -813,7 +793,8 @@ export default function TrackingPage() {
           <EnergyGauge score={score} level={level}
             deviationLevel={data?.deviation_level}
             stressProbability={data?.stress_probability}
-            trend={data?.trend} />
+            trend={data?.trend}
+            signalState={signalState} />
         </div>
 
         {/* Mini Gauges: WPM, Error Rate, Clicks, Mouse Speed */}
@@ -821,7 +802,7 @@ export default function TrackingPage() {
           <div className="rounded-lg border p-4 flex flex-col items-center justify-center"
             style={{ background: "#141420", borderColor: "#1c1c2e" }}>
             <MiniGauge
-              value={liveWpm > 0 ? liveWpm : stats?.typing_speed_wpm || 0}
+              value={liveWpm}
               maxValue={120}
               label="Typing Speed"
               unit="WPM"
@@ -831,7 +812,7 @@ export default function TrackingPage() {
           <div className="rounded-lg border p-4 flex flex-col items-center justify-center"
             style={{ background: "#141420", borderColor: "#1c1c2e" }}>
             <MiniGauge
-              value={liveErrorRate > 0 ? liveErrorRate * 100 : stats?.error_rate ? stats.error_rate * 100 : 0}
+              value={liveErrorRate}
               maxValue={30}
               label="Error Rate"
               unit="%"
@@ -843,7 +824,7 @@ export default function TrackingPage() {
           <div className="rounded-lg border p-4 flex flex-col items-center justify-center"
             style={{ background: "#141420", borderColor: "#1c1c2e" }}>
             <MiniGauge
-              value={liveRageClicks > 0 ? liveRageClicks : stats?.rage_click_count || 0}
+              value={liveRageClicks}
               maxValue={10}
               label="Rage Clicks"
               unit=""
@@ -855,7 +836,7 @@ export default function TrackingPage() {
           <div className="rounded-lg border p-4 flex flex-col items-center justify-center"
             style={{ background: "#141420", borderColor: "#1c1c2e" }}>
             <MiniGauge
-              value={liveMouseSpeed > 0 ? liveMouseSpeed : stats?.mouse_speed_mean || 0}
+              value={liveMouseSpeed}
               maxValue={500}
               label="Mouse Speed"
               unit="px/s"
@@ -906,7 +887,7 @@ export default function TrackingPage() {
         <h3 className="text-sm mb-4 font-medium" style={{ color: "#857F75" }}>
           Your energy trend (last 30 min)
         </h3>
-        {wsHistory.length > 1 ? (
+        {readyHistory.length > 1 ? (
           <div className="h-24">
             <svg width="100%" height="100%" viewBox="0 0 600 100" preserveAspectRatio="none">
               <defs>
@@ -916,7 +897,7 @@ export default function TrackingPage() {
                 </linearGradient>
               </defs>
               {(() => {
-                const points = wsHistory.slice(-30).map((h, i, arr) => {
+                const points = readyHistory.slice(-30).map((h, i, arr) => {
                   const x = (i / (arr.length - 1)) * 600;
                   const y = 100 - (energyFromStress(h.score) / 100) * 100;
                   return { x, y };
@@ -935,7 +916,7 @@ export default function TrackingPage() {
               })()}
             </svg>
           </div>
-        ) : data && data.level !== "UNKNOWN" ? (
+        ) : isReady ? (
           <div className="h-24 flex items-center justify-center">
             <span className="text-xs" style={{ color: "#857F75" }}>
               Building trend line...
@@ -952,10 +933,17 @@ export default function TrackingPage() {
 
       {/* ─── Insights + Recommendation ─── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Insights insights={insights} level={level} />
-        <div className="space-y-4">
-          <Recommendation score={score} />
-          {intervention && (
+          <Insights insights={insights} level={level} />
+          <div className="space-y-4">
+            {isReady ? (
+              <Recommendation score={score} />
+            ) : (
+              <div className="rounded-lg border p-4" style={{ borderColor: "#1c1c2e", background: "#141420" }}>
+                <h3 className="font-medium mb-2" style={{ color: "#F2EFE9" }}>No guidance from an incomplete signal</h3>
+                <p className="text-sm" style={{ color: "#857F75" }}>MindPulse will wait for a ready personal window before suggesting a break, focus mode, or next step.</p>
+              </div>
+            )}
+            {isReady && intervention && (
             <div
               className="rounded-lg border p-4"
               style={{ borderColor: "#5b4fc433", background: "#5b4fc408" }}
@@ -984,32 +972,40 @@ export default function TrackingPage() {
         <h3 className="text-sm mb-3 font-medium" style={{ color: "#857F75" }}>
           Help me learn you better
         </h3>
-        <p className="text-xs mb-4" style={{ color: "#857F75" }}>
-          Help improve the model by confirming or correcting predictions.
-        </p>
-        <div className="flex gap-3">
-          <button
-            onClick={() => api.feedback(level, level, userId)}
-            className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
-            style={{ borderColor: "#22c55e4d", color: "#22c55e" }}
-          >
-            Spot on
-          </button>
-          <button
-            onClick={() => api.feedback(level, "NEUTRAL", userId)}
-            className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
-            style={{ borderColor: "#d977064d", color: "#d97706" }}
-          >
-            Actually energized
-          </button>
-          <button
-            onClick={() => api.feedback(level, "STRESSED", userId)}
-            className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
-            style={{ borderColor: "#dc26264d", color: "#dc2626" }}
-          >
-            Actually low energy
-          </button>
-        </div>
+          <p className="text-xs mb-4" style={{ color: "#857F75" }}>
+            {isReady
+              ? "Your context can confirm or correct this personalized window."
+              : "Feedback unlocks after a ready personal signal, so you are never asked to validate a guess."}
+          </p>
+          {isReady ? (
+            <div className="flex gap-3">
+              <button
+                onClick={() => api.feedback(level, level, userId)}
+                className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+                style={{ borderColor: "#22c55e4d", color: "#22c55e" }}
+              >
+                This fits
+              </button>
+              <button
+                onClick={() => api.feedback(level, "NEUTRAL", userId)}
+                className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+                style={{ borderColor: "#d977064d", color: "#d97706" }}
+              >
+                I feel more settled
+              </button>
+              <button
+                onClick={() => api.feedback(level, "STRESSED", userId)}
+                className="flex-1 py-2.5 rounded-lg border text-sm font-medium transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
+                style={{ borderColor: "#dc26264d", color: "#dc2626" }}
+              >
+                I feel more strained
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-xs leading-5 text-[#8E99B2]">
+              Keep working normally for a short interval. The dashboard will show a distinct early-signal or ready state rather than manufacturing a live score.
+            </div>
+          )}
       </div>
     </div>
   );
