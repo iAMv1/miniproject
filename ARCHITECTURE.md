@@ -685,7 +685,7 @@ mini/
 ```bash
 # Database
 SUPABASE_URL=https://ihaaqumdgdgsvyaiyggs.supabase.co
-SUPABASE_ANON_KEY=sb_publishable_WVhNDQK5BNi8xDGxI-cSXw_HGS-Ztto
+SUPABASE_ANON_KEY=<your-project-anon-key>
 SUPABASE_SERVICE_KEY=<service-role-key>
 
 # Authentication
@@ -803,3 +803,4 @@ python scripts/export_onnx_models.py --output-dir ../frontend/public/models
 | P8 | LSTM temporal model | Implemented | +5-8% F1 for sequences |
 | P9 | Online learning | Implemented | +1-2% F1/month |
 | P10 | Real data collection | Implemented | Foundation for retraining |
+
