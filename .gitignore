@@ -22,3 +22,7 @@ backend/app/ml/artifacts/online_learning.db
 backend/app/ml/artifacts/user_baselines_*.db
 desktop/src-tauri/target/
 backend/.env
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
