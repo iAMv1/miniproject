@@ -126,6 +126,61 @@ fn get_collected_events(state: State<AppState>) -> Result<(Vec<KeyEvent>, Vec<Mo
     Ok((keys, mice))
 }
 
+// ─── Telemetry Bridge (closes the desktop -> backend data channel) ───
+// Posts collected key/mouse events to the MindPulse backend telemetry
+// endpoint. Auth via MINDPULSE_TOKEN env (desktop login flow comes later);
+// endpoint via MINDPULSE_API_URL (default localhost:5000).
+
+fn telemetry_config() -> (String, String) {
+    let url = std::env::var("MINDPULSE_API_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:5000/api/v1".into());
+    let token = std::env::var("MINDPULSE_TOKEN").unwrap_or_default();
+    (url, token)
+}
+
+#[tauri::command]
+fn flush_telemetry(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let (keys, mice) = state.collector.get_events();
+    if keys.is_empty() && mice.is_empty() {
+        return Ok(serde_json::json!({"status": "empty"}));
+    }
+
+    let (url, token) = telemetry_config();
+    let mut events: Vec<serde_json::Value> = Vec::new();
+    for k in keys {
+        events.push(serde_json::json!({
+            "type": "key",
+            "t": k.timestamp_press,
+            "down_ms": k.timestamp_press * 1000.0,
+            "up_ms": k.timestamp_release * 1000.0,
+        }));
+    }
+    for m in mice {
+        events.push(serde_json::json!({
+            "type": "mouse",
+            "t": m.timestamp,
+            "x": m.x,
+            "y": m.y,
+            "kind": if m.event_type.contains("click") { "left" } else { "move" },
+        }));
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .post(format!("{}/telemetry/batch", url))
+        .bearer_auth(&token)
+        .json(&serde_json::json!({"client": "desktop", "events": events}))
+        .send()
+        .map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let body: serde_json::Value = resp.json().unwrap_or(serde_json::json!({}));
+    log::info!("telemetry flush -> {} {}", status, body);
+    Ok(serde_json::json!({"status": status, "body": body}))
+}
+
 #[tauri::command]
 fn get_system_info() -> Result<serde_json::Value, String> {
     let info = serde_json::json!({
@@ -142,14 +197,56 @@ fn main() {
     // Initialize logging
     env_logger::init();
 
+    let state = AppState {
+        collector: Mutex::new(BehavioralCollector::new()),
+    };
+
+    // auto-flush thread (needs a handle to the collector state)
+    {
+        let collector = state.collector.clone();
+        let api = telemetry_config();
+        std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_secs(15));
+            let (keys, mice) = {
+                let c = collector.lock().unwrap();
+                let k = c.key_events.lock().unwrap();
+                let m = c.mouse_events.lock().unwrap();
+                (k.clone(), m.clone())
+            };
+            if keys.is_empty() && mice.is_empty() {
+                continue;
+            }
+            let (url, token) = api.clone();
+            let mut events: Vec<serde_json::Value> = Vec::new();
+            for k in keys.iter() {
+                events.push(serde_json::json!({"type": "key", "t": k.timestamp_press,
+                    "down_ms": k.timestamp_press * 1000.0, "up_ms": k.timestamp_release * 1000.0}));
+            }
+            for m in mice.iter() {
+                events.push(serde_json::json!({"type": "mouse", "t": m.timestamp, "x": m.x, "y": m.y,
+                    "kind": if m.event_type.contains("click") { "left" } else { "move" }}));
+            }
+            let client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(10)).build().unwrap();
+            match client
+                .post(format!("{}/telemetry/batch", url))
+                .bearer_auth(&token)
+                .json(&serde_json::json!({"client": "desktop", "events": events}))
+                .send()
+            {
+                Ok(r) => log::info!("telemetry auto-flush -> {}", r.status()),
+                Err(e) => log::warn!("telemetry auto-flush failed: {}", e),
+            }
+        });
+    }
+
     tauri::Builder::default()
-        .manage(AppState {
-            collector: Mutex::new(BehavioralCollector::new()),
-        })
+        .manage(state)
         .invoke_handler(tauri::generate_handler![
             start_collector,
             stop_collector,
             get_collected_events,
+            flush_telemetry,
             get_system_info,
         ])
         .run(tauri::generate_context!())

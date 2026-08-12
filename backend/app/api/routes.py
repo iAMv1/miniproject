@@ -403,7 +403,7 @@ async def inference_sse_stream(
     Authenticated via ?token=<JWT>.
     """
     from app.core.auth import decode_access_token
-    from app.services.history import get_recent_history
+    from app.services.history import get_history
 
     payload = decode_access_token(token)
     if not payload or not payload.get("sub"):
@@ -414,11 +414,13 @@ async def inference_sse_stream(
         max_iterations = duration_minutes * 12  # 5-second intervals
         
         for i in range(max_iterations):
-            # Get recent data
-            recent = get_recent_history(user_id, minutes=5)
+            # Get recent data (history rows are stored by timestamp; take
+            # the last 5 minutes worth)
+            import time as _time
+            recent = get_history(user_id, hours=24)
             
             if recent and engine.is_ready:
-                latest = recent[-1]
+                latest = recent[-1].model_dump()
                 features = {
                     "hold_time_mean": latest.get("hold_time_mean", 0.2),
                     "flight_time_mean": latest.get("flight_time_mean", 0.15),
@@ -434,6 +436,8 @@ async def inference_sse_stream(
                     "timestamp": datetime.now().isoformat(),
                     "score": result.get("score", 50),
                     "level": result.get("level", "NEUTRAL"),
+                    "deviation_level": result.get("deviation_level", "OK"),
+                    "stress_probability": result.get("stress_probability", 0.0),
                     "confidence": result.get("confidence", 0.0),
                     "features": {
                         "typing_speed_wpm": features["typing_speed_wpm"],
