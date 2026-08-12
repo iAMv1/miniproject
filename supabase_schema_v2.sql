@@ -62,3 +62,82 @@ create index if not exists idx_chat_sessions_user on chat_sessions(user_id);
 create index if not exists idx_chat_messages_session on chat_messages(session_id);
 create index if not exists idx_wellness_user_date on wellness_checkins(user_id, check_date);
 create index if not exists idx_focus_user_time on focus_snapshots(user_id, created_at);
+
+-- ── Core loop tables (Supabase-only backend) ──
+
+create table if not exists stress_history (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    score real not null,
+    level text not null,
+    deviation_level text not null,
+    stress_probability real not null,
+    typing_speed_wpm real,
+    error_rate real,
+    click_count int,
+    created_at timestamptz default now()
+);
+
+create table if not exists ema_checkins (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    stress real not null check (stress between 0 and 10),
+    fatigue real check (fatigue between 0 and 10),
+    ts_epoch real not null,
+    created_at timestamptz default now()
+);
+
+create table if not exists telemetry_events (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    client text not null default 'desktop',
+    event_type text not null,
+    ts_epoch real not null,
+    key_hash text,
+    x real, y real,
+    kind text,
+    down_ms real, up_ms real,
+    received_at timestamptz default now()
+);
+
+create table if not exists user_baselines (
+    user_id uuid primary key references auth.users(id) on delete cascade,
+    mean jsonb not null default '[]',
+    std jsonb not null default '[]',
+    threshold real not null default 40,
+    updated_at timestamptz default now()
+);
+
+create table if not exists interventions (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references auth.users(id) on delete cascade,
+    action text not null,
+    intervention_type text,
+    notes text,
+    created_at timestamptz default now()
+);
+
+-- RLS: users own their rows
+alter table stress_history enable row level security;
+alter table ema_checkins enable row level security;
+alter table telemetry_events enable row level security;
+alter table user_baselines enable row level security;
+alter table interventions enable row level security;
+alter table chat_sessions enable row level security;
+alter table chat_messages enable row level security;
+alter table wellness_checkins enable row level security;
+alter table wellness_insights enable row level security;
+alter table focus_snapshots enable row level security;
+alter table user_shield_settings enable row level security;
+
+create policy "own stress_history" on stress_history for all using (auth.uid() = user_id);
+create policy "own ema" on ema_checkins for all using (auth.uid() = user_id);
+create policy "own telemetry" on telemetry_events for all using (auth.uid() = user_id);
+create policy "own baselines" on user_baselines for all using (auth.uid() = user_id);
+create policy "own interventions" on interventions for all using (auth.uid() = user_id);
+create policy "own chat sessions" on chat_sessions for all using (auth.uid() = user_id::text);
+create policy "own chat messages" on chat_messages for all using (true);
+create policy "own wellness" on wellness_checkins for all using (auth.uid() = user_id::text);
+create policy "own insights" on wellness_insights for all using (auth.uid() = user_id::text);
+create policy "own focus" on focus_snapshots for all using (auth.uid() = user_id::text);
+create policy "own shield" on user_shield_settings for all using (auth.uid() = user_id::text);
