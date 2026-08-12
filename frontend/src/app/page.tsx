@@ -1,7 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
+import { ScrollRhythm } from "@/components/scroll-rhythm";
 import {
   ArrowUpRight,
   Check,
@@ -35,12 +36,14 @@ function Brand() {
 }
 
 function QuietOrbit() {
+  const shouldReduceMotion = useReducedMotion();
+  const orbitTransition = { duration: 26, repeat: Infinity, ease: "linear" as const };
   return (
     <div className="relative mx-auto grid aspect-square w-full max-w-[30rem] place-items-center" aria-hidden="true">
-      <div className="absolute inset-[10%] rounded-full border border-[#b9b3ff]/10" />
-      <div className="absolute inset-[20%] rounded-full border border-[#b9b3ff]/15" />
-      <div className="absolute inset-[31%] rounded-full border border-[#62d8ac]/20" />
-      <div className="absolute inset-[42%] rounded-full border border-white/10 bg-[#111628]/80 shadow-[0_0_80px_rgba(115,101,237,0.20)]" />
+      <motion.div className="absolute inset-[10%] rounded-full border border-[#b9b3ff]/10" animate={shouldReduceMotion ? undefined : { rotate: 360 }} transition={orbitTransition} />
+      <motion.div className="absolute inset-[20%] rounded-full border border-[#b9b3ff]/15" animate={shouldReduceMotion ? undefined : { rotate: -360 }} transition={{ ...orbitTransition, duration: 19 }} />
+      <motion.div className="absolute inset-[31%] rounded-full border border-[#62d8ac]/20" animate={shouldReduceMotion ? undefined : { scale: [1, 1.04, 1], opacity: [0.55, 1, 0.55] }} transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div className="absolute inset-[42%] rounded-full border border-white/10 bg-[#111628]/80 shadow-[0_0_80px_rgba(115,101,237,0.20)]" animate={shouldReduceMotion ? undefined : { scale: [1, 1.025, 1] }} transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }} />
       <div className="absolute h-[58%] w-px bg-gradient-to-b from-transparent via-[#b9b3ff]/55 to-transparent" />
       <div className="absolute h-px w-[58%] bg-gradient-to-r from-transparent via-[#62d8ac]/45 to-transparent" />
       <div className="relative flex max-w-[12rem] flex-col items-center text-center">
@@ -48,8 +51,8 @@ function QuietOrbit() {
         <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#B9B3FF]">A quieter signal</span>
         <span className="mt-3 text-sm leading-6 text-[#A9B3CB]">Designed to wait for context before it says anything.</span>
       </div>
-      <span className="absolute left-[13%] top-[27%] h-2 w-2 rounded-full bg-[#B9B3FF] shadow-[0_0_16px_rgba(185,179,255,0.9)]" />
-      <span className="absolute bottom-[22%] right-[18%] h-2 w-2 rounded-full bg-[#62D8AC] shadow-[0_0_16px_rgba(98,216,172,0.8)]" />
+      <motion.span className="absolute left-[13%] top-[27%] h-2 w-2 rounded-full bg-[#B9B3FF] shadow-[0_0_16px_rgba(185,179,255,0.9)]" animate={shouldReduceMotion ? undefined : { transform: ["translate3d(0,0,0)", "translate3d(10px,-8px,0)", "translate3d(0,0,0)"] }} transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.span className="absolute bottom-[22%] right-[18%] h-2 w-2 rounded-full bg-[#62D8AC] shadow-[0_0_16px_rgba(98,216,172,0.8)]" animate={shouldReduceMotion ? undefined : { transform: ["translate3d(0,0,0)", "translate3d(-8px,9px,0)", "translate3d(0,0,0)"] }} transition={{ duration: 5.4, repeat: Infinity, ease: "easeInOut" }} />
     </div>
   );
 }
@@ -85,6 +88,7 @@ export default function LandingPage() {
     <main className="min-h-screen overflow-hidden bg-[#080A12] text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_14%_0%,rgba(109,96,232,0.16),transparent_27rem),radial-gradient(circle_at_88%_12%,rgba(72,194,150,0.10),transparent_23rem),linear-gradient(180deg,#080A12_0%,#0C1020_54%,#080A12_100%)]" />
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-[0.035] [background-image:linear-gradient(rgba(255,255,255,.9)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.9)_1px,transparent_1px)] [background-size:48px_48px]" />
+      <ScrollRhythm />
 
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-8">
         <Brand />
