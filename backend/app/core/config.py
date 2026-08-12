@@ -66,26 +66,28 @@ CALIBRATION_MIN_HOURS_COVERED = 4
 # WebSocket reliability
 WS_HEARTBEAT_TIMEOUT_SEC = 30.0
 
-# Realistic performance expectations (from research)
+# Literature-derived expectations (NOT MindPulse measurements).
+# These are reference ranges from cited studies, used for calibration of
+# UI expectations only. They are not validation results of this system.
 EXPECTED_PERFORMANCE = {
     "universal_model": {
-        "f1_macro": (0.25, 0.40),  # Range from ETH Zurich 2025
+        "f1_macro": (0.25, 0.40),  # literature reference, not measured
         "accuracy": (0.30, 0.45),
-        "source": "Naegelin et al. 2025, 36 employees, 8-week field study",
+        "source": "Naegelin et al. 2025, 36 employees, 8-week field study (not measured here)",
     },
     "with_calibration_50": {
         "f1_macro": (0.55, 0.70),
         "accuracy": (0.60, 0.72),
-        "source": "Estimated from Pepa et al. 2021 + per-user adaptation",
+        "source": "ESTIMATE — derived from Pepa et al. 2021 + assumed per-user adaptation. Not measured.",
     },
     "with_calibration_100": {
         "f1_macro": (0.65, 0.75),
         "accuracy": (0.68, 0.78),
-        "source": "Extrapolated from ETH Zurich 2023 lab study",
+        "source": "EXTRAPOLATION from ETH Zurich 2023 lab study. Not measured.",
     },
     "sota_lab": {
         "f1_macro": (0.60, 0.65),
         "accuracy": (0.65, 0.76),
-        "source": "Pepa et al. 2021 (62 users, in-the-wild, keyboard only)",
+        "source": "Pepa et al. 2021 (62 users, in-the-wild, keyboard only) — different dataset/task design",
     },
 }

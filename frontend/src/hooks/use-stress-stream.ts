@@ -27,7 +27,11 @@ export function useStressStream(): UseStressStreamReturn {
     // Only run in browser
     if (typeof window === "undefined") return;
     
-    const url = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
+    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
+    const token = typeof window !== "undefined" ? localStorage.getItem("mp_token") : null;
+    const url = token
+      ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
+      : baseUrl;
     
     try {
       setStatus("connecting");

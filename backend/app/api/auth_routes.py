@@ -14,9 +14,12 @@ from typing import Optional
 
 from app.services import users
 from app.core.auth import decode_access_token
+from app.core.ratelimit import SlidingWindowLimiter, rate_limit
 
 router = APIRouter()
 bearer_scheme = HTTPBearer()
+
+_login_limiter = SlidingWindowLimiter(max_requests=10, window_seconds=60)
 
 
 class SignupRequest(BaseModel):
@@ -38,7 +41,9 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/auth/signup", response_model=AuthResponse)
-async def signup(req: SignupRequest):
+async def signup(
+    req: SignupRequest, _: None = Depends(rate_limit(_login_limiter))
+):
     if len(req.password) < 6:
         raise HTTPException(
             status_code=400, detail="Password must be at least 6 characters"
@@ -53,7 +58,9 @@ async def signup(req: SignupRequest):
 
 
 @router.post("/auth/login", response_model=AuthResponse)
-async def login(req: LoginRequest):
+async def login(
+    req: LoginRequest, _: None = Depends(rate_limit(_login_limiter))
+):
     result = users.login(req.email_or_username, req.password)
     if not result:
         raise HTTPException(
@@ -67,14 +74,7 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ):
     if credentials.credentials == "demo":
-        return {
-            "id": 0,
-            "email": "demo@mindpulse.app",
-            "username": "demo",
-            "display_name": "Demo User",
-            "created_at": None,
-            "last_login": None,
-        }
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
     payload = decode_access_token(credentials.credentials)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")

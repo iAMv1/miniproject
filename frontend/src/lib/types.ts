@@ -34,6 +34,10 @@ export interface StressResult {
   equation_score?: number;
   final_score?: number;
   level: "NEUTRAL" | "MILD" | "STRESSED" | "UNKNOWN";
+  /** Honest binary semantics (first-principles rebuild): deviation vs the
+   * user's own baseline, not a universal 3-class verdict. */
+  deviation_level?: "OK" | "ELEVATED";
+  stress_probability?: number;
   confidence: number;
   probabilities: Record<string, number>;
   feature_contributions?: Record<string, number>;

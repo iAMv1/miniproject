@@ -1,65 +1,17 @@
-# Python
+# Heavy corpora — excluded from git (download instructions in training/data/DATASETS.md)
+training/data/ikdd/
+training/data/kupa_keys/
+training/data/swell_ulog/
+training/data/frustrometer_data.zip
+training/data/136m_processed.csv
+
+# Runtime artifacts
+backend/telemetry.db
+backend/ema.db
+backend/scripts/telemetry.db
+backend/scripts/ema.db
+training/data/sequences.npz
+training/data/embed_inputs.npz
+training/data/encoder.pt
 __pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-.venv/
-.eggs/
-*.egg
-
-# ML artifacts (large binary files)
-backend/app/ml/artifacts/*.joblib
-backend/app/ml/artifacts/*.pt
-backend/app/ml/artifacts/*.db
-backend/app/ml/artifacts/*.json
-
-# Datasets (large CSVs)
-backend/data/*.csv
-!backend/data/sample_data.csv
-backend/data/eval_results/*.json
-!backend/data/eval_results/paper_results.json
-
-# Eval output files
-backend/*.json
-backend/*.csv
-
-# Environment
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Node / Next.js
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/dist/
-frontend/*.tsbuildinfo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# tmp_repo (legacy)
-tmp_repo/
-
-# Ruff
-.ruff_cache/
-
-# Coverage
-htmlcov/
-.coverage
-.coverage.*
-
-# Misc
-*.bak
-*.tmp
+*.pyc

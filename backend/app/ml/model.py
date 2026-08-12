@@ -108,8 +108,9 @@ def _validate_stats_object(stats: dict) -> None:
 def _validate_model_object(model) -> None:
     if not hasattr(model, "predict_proba"):
         raise ValueError("Model object missing predict_proba().")
-    # sanity test on input dimensionality (46)
-    x = np.zeros((1, NUM_RAW_FEATURES * 2), dtype=np.float32)
+    # sanity test on input dimensionality — use the model's own contract
+    n_in = int(getattr(model, "n_features_in_", NUM_RAW_FEATURES * 2))
+    x = np.zeros((1, n_in), dtype=np.float32)
     out = model.predict_proba(x)
     out = np.asarray(out)
     if out.ndim != 2 or out.shape[1] != 3:
@@ -346,6 +347,22 @@ class PersonalBaseline:
             conn.close()
         return rows
 
+    def score_percentile(self, q: float, limit_hours: int = 72) -> float | None:
+        """Quantile of this user's recent session scores (per-user threshold)."""
+        rows = self.get_session_history(limit_hours=limit_hours)
+        if len(rows) < 5:
+            return None
+        import numpy as np
+        scores = np.asarray([float(r[1]) for r in rows])
+        return float(np.quantile(scores, q))
+
+    def recent_mean(self, limit_hours: int = 6) -> float:
+        rows = self.get_session_history(limit_hours=limit_hours)
+        if not rows:
+            return 0.0
+        import numpy as np
+        return float(np.mean([float(r[1]) for r in rows]))
+
     def save_feedback(
         self, timestamp_ms: float, model_label: str, user_feedback: str, score: float
     ):
@@ -431,13 +448,15 @@ class PersonalBaseline:
 def _load_real_dataset_from_csv(
     csv_path: str,
     label_column: str = "stress_label",
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
     """
     Expected CSV:
       - columns for all FEATURE_NAMES (23 raw features)
       - one label column:
           * int labels: 0/1/2
           * or strings: NEUTRAL/MILD/STRESSED
+      - optional `user_id` column: used for subject-independent splitting.
+    Returns (X, y, subjects) where subjects is None when no user_id column exists.
     """
     import pandas as pd
 
@@ -464,13 +483,19 @@ def _load_real_dataset_from_csv(
             [mapper.get(str(v).strip().upper(), -1) for v in raw_y], dtype=np.int32
         )
 
+    subjects = None
+    if "user_id" in df.columns:
+        subjects = df["user_id"].astype(str).to_numpy()
+
     valid = np.isin(y, [0, 1, 2])
     X, y = X[valid], y[valid]
+    if subjects is not None:
+        subjects = subjects[valid]
 
     if len(X) < 10:
         raise ValueError("Not enough valid rows in real dataset after filtering (<10).")
 
-    return X, y
+    return X, y, subjects
 
 
 # ────────────────────────────────────────────────────────────────
@@ -532,9 +557,10 @@ def train_model(
     label_col = os.getenv("MINDPULSE_LABEL_COLUMN", label_column)
 
     source = "synthetic"
+    subjects = None
     if csv_path:
         try:
-            X_raw, y = _load_real_dataset_from_csv(csv_path, label_col)
+            X_raw, y, subjects = _load_real_dataset_from_csv(csv_path, label_col)
             source = "real_csv"
         except Exception as e:
             print(
@@ -552,9 +578,35 @@ def train_model(
 
     X = _normalize_dataset_for_training(X_raw, stats)
 
-    X_train, X_val, y_train, y_val = train_test_split(
-        X, y, test_size=0.2, stratify=y, random_state=42
-    )
+    split_method = "random"
+    if subjects is not None:
+        unique_subjects = np.unique(subjects)
+        if len(unique_subjects) >= 3:
+            from sklearn.model_selection import GroupShuffleSplit
+
+            gss = GroupShuffleSplit(
+                n_splits=1, test_size=0.2, random_state=42
+            )
+            train_idx, val_idx = next(gss.split(X, y, groups=subjects))
+            X_train, X_val = X[train_idx], X[val_idx]
+            y_train, y_val = y[train_idx], y[val_idx]
+            split_method = "subject_independent"
+            print(
+                f"[MindPulse] Subject-independent split: "
+                f"train subjects={sorted(set(subjects[train_idx]))}, "
+                f"val subjects={sorted(set(subjects[val_idx]))}"
+            )
+        else:
+            print(
+                f"[WARN] Only {len(unique_subjects)} subjects in dataset — "
+                f"subject-independent split infeasible; falling back to random split. "
+                f"Metrics will NOT be subject-independent."
+            )
+
+    if split_method == "random":
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.2, stratify=y, random_state=42
+        )
 
     model = _build_xgb_classifier()
     model.fit(
@@ -574,6 +626,10 @@ def train_model(
             recall_score(y_val, y_pred, average="macro", zero_division=0.0)
         ),
         "f1_macro": float(f1_score(y_val, y_pred, average="macro")),
+        "split_method": split_method,
+        "training_source": source,
+        "n_train": int(len(y_train)),
+        "n_validation": int(len(y_val)),
     }
 
     print("\n[MindPulse] Validation Metrics")
@@ -588,14 +644,20 @@ def train_model(
     joblib.dump(model, MODEL_PATH)
     _validate_model_object(model)
 
-    _write_manifest(
-        {
-            "training_source": source,
-            "num_samples_raw": int(len(X_raw)),
-            "metrics_validation": metrics,
-            "label_column": label_col,
-        }
-    )
+    manifest = {
+        "training_source": source,
+        "num_samples_raw": int(len(X_raw)),
+        "metrics_validation": metrics,
+        "label_column": label_col,
+    }
+    if csv_path and os.path.exists(csv_path):
+        import hashlib
+
+        with open(csv_path, "rb") as f:
+            manifest["dataset_sha256"] = hashlib.sha256(f.read()).hexdigest()
+        manifest["dataset_path"] = os.path.basename(csv_path)
+
+    _write_manifest(manifest)
 
     return {"status": "trained", **metrics, "source": source}
 

@@ -1,14 +1,15 @@
 """
 MindPulse — Online Learning Pipeline
 ======================================
-Updates model weights based on user feedback without full retraining.
+Per-user post-hoc score adaptation based on feedback without retraining the base model.
 
 Strategy:
 - Keep base model frozen (general knowledge)
-- Train per-user adapter layers (personalization)
+- Apply per-user threshold/class-bias/weight adjustments (score adaptation)
 - Use experience replay to prevent catastrophic forgetting
 
-Expected Impact: +1-2% F1 per month per active user
+NOTE: This module does not retrain the XGBoost model. The +1-2% F1/month
+claim was removed — it was never measured.
 """
 
 from __future__ import annotations

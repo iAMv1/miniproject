@@ -2,31 +2,41 @@
 
 from __future__ import annotations
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-SECRET_KEY = os.getenv(
-    "JWT_SECRET_KEY", "mindpulse-dev-secret-change-in-production-2024"
-)
+_SECRET_FROM_ENV = os.getenv("JWT_SECRET_KEY")
+SECRET_KEY = _SECRET_FROM_ENV or secrets.token_urlsafe(48)
+if not _SECRET_FROM_ENV:
+    print(
+        "[WARN] JWT_SECRET_KEY not set — using ephemeral random key. "
+        "All sessions invalidate on restart. Set JWT_SECRET_KEY in production."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.getenv("JWT_ACCESS_TOKEN_EXPIRE", 10080)
 )  # 7 days default
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = None  # passlib removed: unmaintained and incompatible with bcrypt>=4.1
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -60,9 +70,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
     
     if not token:
         raise credentials_exception
-    
-    if token == "demo":
-        return {"id": "0", "email": "demo@mindpulse.app"}
     
     payload = decode_access_token(token)
     if payload is None:

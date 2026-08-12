@@ -1,0 +1,12 @@
+{
+  "id": "afafas212141/mindpulse-finetune-nn",
+  "title": "MindPulse finetune NN v1",
+  "code_file": "finetune_kernel.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "competition_sources": [],
+  "dataset_sources": ["afafas212141/mindpulse-swell-v3"]
+}

@@ -1,0 +1,9 @@
+numpy>=1.26
+pandas>=2.0
+scikit-learn>=1.3
+xgboost>=2.0
+joblib>=1.3
+openpyxl>=3.1
+# onnxmltools is deprecated (no py3.12 wheels). ONNX export is best-effort:
+# onnxruntime is preinstalled on Kaggle/Colab images; onnxmltools optional.
+onnxmltools>=1.11; python_version < "3.12"

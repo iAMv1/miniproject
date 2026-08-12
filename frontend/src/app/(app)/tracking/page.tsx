@@ -107,7 +107,13 @@ function MiniGauge({
 }
 
 // ─── SVG Semi-circle Gauge (Energy) ───
-function EnergyGauge({ score, level }: { score: number; level: string }) {
+function EnergyGauge({ score, level, deviationLevel, stressProbability, trend }: {
+  score: number;
+  level: string;
+  deviationLevel?: string;
+  stressProbability?: number;
+  trend?: string;
+}) {
   const energy = energyFromStress(score);
   const softLevel = SOFT_LEVEL[level] ?? level;
 
@@ -205,6 +211,14 @@ function EnergyGauge({ score, level }: { score: number; level: string }) {
       >
         {softLevel}
       </span>
+      {deviationLevel && (
+        <span className="text-[10px] mt-0.5" style={{ color: "#857F75" }}>
+          {deviationLevel === "ELEVATED"
+            ? `Elevated vs your baseline · p=${stressProbability?.toFixed(2)}`
+            : `Within your baseline · p=${stressProbability?.toFixed(2)}`}
+          {trend ? ` · ${trend}` : ""}
+        </span>
+      )}
     </div>
   );
 }
@@ -774,7 +788,10 @@ export default function TrackingPage() {
           className="lg:col-span-1 flex flex-col items-center justify-center rounded-lg border p-6"
           style={{ background: "#141420", borderColor: "#1c1c2e" }}
         >
-          <EnergyGauge score={score} level={level} />
+          <EnergyGauge score={score} level={level}
+            deviationLevel={data?.deviation_level}
+            stressProbability={data?.stress_probability}
+            trend={data?.trend} />
         </div>
 
         {/* Mini Gauges: WPM, Error Rate, Clicks, Mouse Speed */}

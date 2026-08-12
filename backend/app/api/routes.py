@@ -3,7 +3,8 @@
 from __future__ import annotations
 import time
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException
+from app.core.auth import get_current_user
 from app.schemas.stress import (
     InferenceRequest,
     InferenceResponse,
@@ -11,7 +12,6 @@ from app.schemas.stress import (
     FeedbackRequest,
     CalibrationStatus,
     HealthResponse,
-    ResetRequest,
     InterventionActionRequest,
     InterventionEvent,
 )
@@ -24,8 +24,12 @@ from app.core.config import (
     CALIBRATION_MIN_HOURS_COVERED,
     WS_HEARTBEAT_TIMEOUT_SEC,
 )
+from app.core.ratelimit import SlidingWindowLimiter, rate_limit
 
 router = APIRouter()
+
+_inference_limiter = SlidingWindowLimiter(max_requests=120, window_seconds=60)
+_mutation_limiter = SlidingWindowLimiter(max_requests=30, window_seconds=60)
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -39,10 +43,15 @@ async def health():
 
 
 @router.post("/inference", response_model=InferenceResponse)
-async def run_inference(req: InferenceRequest):
+async def run_inference(
+    req: InferenceRequest,
+    current_user: dict = Depends(get_current_user),
+    _: None = Depends(rate_limit(_inference_limiter)),
+):
+    user_id = current_user["id"]
     features_raw = req.features.model_dump()
-    result = engine.predict(features_raw, req.user_id)
-    intervention_state = intervention_engine.evaluate(req.user_id, result)
+    result = engine.predict(features_raw, user_id)
+    intervention_state = intervention_engine.evaluate(user_id, result)
     result.update(
         {
             "alert_state": intervention_state["alert_state"],
@@ -51,34 +60,43 @@ async def run_inference(req: InferenceRequest):
             "recovery_score": intervention_state["recovery_score"],
         }
     )
-    history.append(req.user_id, result)
+    history.append(user_id, result)
     if intervention_state["new_alert_triggered"] and intervention_state["intervention"]:
         history.append_intervention_event(
-            user_id=req.user_id,
+            user_id=user_id,
             action="recommended",
             intervention_type=intervention_state["intervention"]["intervention_type"],
             alert_state=intervention_state["alert_state"],
             score_before=float(result.get("score", 0.0)),
             notes="auto-generated recommendation",
         )
-    await manager.broadcast({"type": "stress_update", **result, "user_id": req.user_id})
+    await manager.broadcast({"type": "stress_update", **result, "user_id": user_id})
     return InferenceResponse(**result)
 
 
 @router.get("/history", response_model=list[HistoryPoint])
-async def get_history(user_id: str = "default", hours: int = 24):
+async def get_history(
+    current_user: dict = Depends(get_current_user), hours: int = 24
+):
+    user_id = current_user["id"]
     return history.get_history(user_id, hours)
 
 
 @router.get("/stats")
-async def get_stats(user_id: str = "default"):
+async def get_stats(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     return history.get_stats(user_id)
 
 
 @router.post("/feedback")
-async def submit_feedback(req: FeedbackRequest):
+async def submit_feedback(
+    req: FeedbackRequest,
+    current_user: dict = Depends(get_current_user),
+    _: None = Depends(rate_limit(_mutation_limiter)),
+):
+    user_id = current_user["id"]
     # Persist feedback to SQLite via PersonalBaseline
-    baseline = engine._get_baseline(req.user_id)
+    baseline = engine._get_baseline(user_id)
     if baseline:
         baseline.save_feedback(
             timestamp_ms=req.timestamp,
@@ -93,7 +111,8 @@ async def submit_feedback(req: FeedbackRequest):
 
 
 @router.get("/interventions/recommendation")
-async def get_recommendation(user_id: str = "default"):
+async def get_recommendation(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     latest = history.latest_point(user_id)
     eval_result = intervention_engine.evaluate(
         user_id,
@@ -118,9 +137,11 @@ async def get_recommendation(user_id: str = "default"):
 
 
 @router.post("/interventions/action")
-async def intervention_action(req: InterventionActionRequest):
+async def intervention_action(
+    req: InterventionActionRequest, current_user: dict = Depends(get_current_user)
+):
     return intervention_engine.apply_action(
-        user_id=req.user_id,
+        user_id=current_user["id"],
         action=req.action,
         intervention_type=req.intervention_type or "",
         notes=req.notes or "",
@@ -128,13 +149,17 @@ async def intervention_action(req: InterventionActionRequest):
 
 
 @router.get("/interventions/history", response_model=list[InterventionEvent])
-async def intervention_history(user_id: str = "default", hours: int = 168):
+async def intervention_history(
+    current_user: dict = Depends(get_current_user), hours: int = 168
+):
+    user_id = current_user["id"]
     events = history.get_intervention_events(user_id, hours)
     return [InterventionEvent(**event) for event in events]
 
 
 @router.get("/interventions/wind-down")
-async def check_wind_down(user_id: str = "default"):
+async def check_wind_down(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     latest = history.latest_point(user_id)
     wind_down = intervention_engine.detect_wind_down(user_id, latest)
     return {"wind_down": wind_down}
@@ -142,34 +167,39 @@ async def check_wind_down(user_id: str = "default"):
 
 @router.post("/interventions/schedule-break")
 async def schedule_break(
-    user_id: str = Query("default"),
+    current_user: dict = Depends(get_current_user),
     break_time: str = Query(...),
     intervention_type: str = Query("breathing_reset"),
 ):
+    user_id = current_user["id"]
     return intervention_engine.schedule_break(user_id, break_time, intervention_type)
 
 
 @router.get("/interventions/scheduled-breaks")
-async def get_scheduled_breaks(user_id: str = "default"):
+async def get_scheduled_breaks(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     return {"breaks": intervention_engine.get_scheduled_breaks(user_id)}
 
 
 @router.post("/interventions/cancel-break")
 async def cancel_break(
-    user_id: str = Query("default"),
+    current_user: dict = Depends(get_current_user),
     break_id: str = Query(...),
 ):
+    user_id = current_user["id"]
     return intervention_engine.cancel_break(user_id, break_id)
 
 
 @router.get("/interventions/check-due-breaks")
-async def check_due_breaks(user_id: str = "default"):
+async def check_due_breaks(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     due = intervention_engine.check_due_breaks(user_id)
     return {"due_break": due}
 
 
-@router.get("/calibration/{user_id}", response_model=CalibrationStatus)
-async def get_calibration(user_id: str):
+@router.get("/calibration", response_model=CalibrationStatus)
+async def get_calibration(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["id"]
     baseline = engine._get_baseline(user_id)
     if baseline:
         status = baseline.get_calibration_status(
@@ -195,9 +225,12 @@ async def get_calibration(user_id: str):
 
 
 @router.post("/reset")
-async def reset_session(req: ResetRequest):
+async def reset_session(
+    current_user: dict = Depends(get_current_user),
+    _: None = Depends(rate_limit(_mutation_limiter)),
+):
     """Clear all in-memory session data for a fresh start."""
-    user_id = req.user_id
+    user_id = current_user["id"]
     history.reset(user_id)
     baseline = engine._get_baseline(user_id)
     if baseline:
@@ -207,7 +240,7 @@ async def reset_session(req: ResetRequest):
 
 
 @router.get("/model-metrics")
-async def model_metrics():
+async def model_metrics(current_user: dict = Depends(get_current_user)):
     """Return model accuracy, F1, precision, recall and confusion matrix."""
     import json
     import os
@@ -268,11 +301,26 @@ async def model_metrics():
         "f1": round(metrics.get("f1_macro", 0) * 100, 1),
         "confusion_matrix": confusion_matrix,
         "labels": ["NEUTRAL", "MILD", "STRESSED"],
+        "benchmark_type": "synthetic_smoke_test",
+        "training_source": metrics.get("training_source", "unknown"),
+        "split_method": metrics.get("split_method", "unknown"),
+        "note": (
+            "Confusion matrix is generated on 600 fresh SYNTHETIC samples. "
+            "It is a smoke test of pipeline integrity, not a real-world benchmark. "
+            "See manifest for the stored training metrics."
+        ),
     }
 
 
 @router.websocket("/ws/stress")
-async def websocket_stress(ws: WebSocket):
+async def websocket_stress(ws: WebSocket, token: str = Query(default="")):
+    from app.core.auth import decode_access_token
+
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        await ws.close(code=4401, reason="Unauthorized")
+        return
+    uid = str(payload["sub"])
     await manager.connect(ws)
     try:
         while True:
@@ -294,10 +342,7 @@ async def websocket_stress(ws: WebSocket):
                     from app.schemas.stress import FeatureVector
 
                     fv = FeatureVector(**payload["features"])
-                    result = engine.predict(
-                        fv.model_dump(), payload.get("user_id", "default")
-                    )
-                    uid = payload.get("user_id", "default")
+                    result = engine.predict(fv.model_dump(), uid)
                     intervention_state = intervention_engine.evaluate(uid, result)
                     result.update(
                         {
@@ -339,16 +384,23 @@ import json as json_mod
 
 @router.get("/inference/stream")
 async def inference_sse_stream(
-    user_id: str = Query(default="default"),
+    token: str = Query(default=""),
     duration_minutes: int = Query(default=30, ge=1, le=120)
 ):
     """SSE stream of stress inference updates.
-    
+
     Alternative to WebSocket for clients that prefer SSE.
     Streams stress scores every 5 seconds for specified duration.
+    Authenticated via ?token=<JWT>.
     """
+    from app.core.auth import decode_access_token
     from app.services.history import get_recent_history
-    
+
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    user_id = str(payload["sub"])
+
     async def event_generator():
         max_iterations = duration_minutes * 12  # 5-second intervals
         

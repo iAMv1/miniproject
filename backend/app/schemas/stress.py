@@ -15,7 +15,7 @@ class FeatureVector(BaseModel):
     flight_time_mean: float = Field(..., description="Average flight time (ms)")
     flight_time_std: float = Field(..., description="Std of flight times")
     typing_speed_wpm: float = Field(..., description="Typing speed (WPM)")
-    error_rate: float = Field(..., ge=0, le=1, description="Backspace ratio")
+    error_rate: float = Field(..., ge=0, le=5, description="Backspace ratio (can exceed 1 in sparse typing minutes)")
     pause_frequency: float = Field(..., description="Pauses per minute")
     pause_duration_mean: float = Field(..., description="Average pause duration (ms)")
     burst_length_mean: float = Field(..., description="Average burst length")
@@ -25,7 +25,7 @@ class FeatureVector(BaseModel):
     mouse_speed_mean: float = Field(..., description="Average mouse speed (px/s)")
     mouse_speed_std: float = Field(..., description="Std of mouse speed")
     direction_change_rate: float = Field(
-        ..., ge=0, le=1, description="Cursor direction changes"
+        ..., ge=0, le=100, description="Cursor direction changes (count/ratio per window)"
     )
     click_count: float = Field(..., description="Clicks per window")
     rage_click_count: float = Field(..., description="Rage click clusters detected")
@@ -61,7 +61,13 @@ class InferenceResponse(BaseModel):
     model_score: float = Field(..., description="Model-derived score 0-100")
     equation_score: float = Field(..., description="Equation-derived score 0-100")
     final_score: float = Field(..., description="Final blended score 0-100")
-    level: str = Field(..., description="NEUTRAL, MILD, or STRESSED")
+    level: str = Field(..., description="NEUTRAL, MILD, or STRESSED (legacy; use deviation_level)")
+    deviation_level: Optional[str] = Field(
+        default=None, description="Honest binary state: OK | ELEVATED (vs user baseline)"
+    )
+    stress_probability: Optional[float] = Field(
+        default=None, description="Calibrated probability of deviation (0-1), not clinical"
+    )
     confidence: float = Field(..., ge=0, le=1)
     probabilities: Dict[str, float]
     feature_contributions: Dict[str, float] = Field(

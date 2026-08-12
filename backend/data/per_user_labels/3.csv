@@ -1,0 +1,2 @@
+hold_time_mean,hold_time_std,hold_time_median,flight_time_mean,flight_time_std,typing_speed_wpm,error_rate,pause_frequency,pause_duration_mean,burst_length_mean,rhythm_entropy,mouse_speed_mean,mouse_speed_std,direction_change_rate,click_count,rage_click_count,scroll_velocity_std,tab_switch_freq,switch_entropy,session_fragmentation,hour_of_day,day_of_week,session_duration_min,label,stress_raw
+63.0,12.027745701779143,60.0,149.5,0.5,1.2,0.0,0.0,0.0,3.0,-0.0,0.23570226039551584,0.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,12.0,2.0,30,1,6.5

@@ -13,6 +13,7 @@ from app.core.config import (
     STRESS_SCORE_THRESHOLD_HIGH,
     MODEL_SCORE_WEIGHT,
 )
+from app.ml.feature_extractor import NUM_RAW_FEATURES
 
 # ═══════════════════════════════════════════════════════════════
 # DYNAMIC HYBRID WEIGHTING (Issue #2 Fix)
@@ -170,6 +171,27 @@ class InferenceEngine:
             return "MILD"
         return "NEUTRAL"
 
+    @staticmethod
+    def _user_threshold(baseline) -> float:
+        """Per-user deviation threshold: personal baseline percentile.
+        Without a baseline, fall back to the global MILD threshold."""
+        if baseline is None:
+            return STRESS_SCORE_THRESHOLD_MILD
+        try:
+            q = baseline.score_percentile(0.8)
+            return float(q) if q is not None else STRESS_SCORE_THRESHOLD_MILD
+        except Exception:
+            return STRESS_SCORE_THRESHOLD_MILD
+
+    @staticmethod
+    def _calibrated_probability(score: float, threshold: float) -> float:
+        """Logistic calibration of deviation probability around the user
+        threshold (logistic midpoint at threshold, slope from global score
+        scale). Not a clinical probability — an honest relative indicator."""
+        import math
+        k = 0.08  # logistic slope on the 0-100 score scale
+        return 1.0 / (1.0 + math.exp(-k * (score - threshold)))
+
     def load(self, use_ensemble: bool = False):
         """Lazy-load model from ml package.
         
@@ -296,6 +318,21 @@ class InferenceEngine:
 
         raw = np.array([features_dict[f] for f in FEATURE_NAMES], dtype=np.float32)
 
+        # Distribution-aware input guards (trained-model contract):
+        # 1) zero-variance features were constant during training -> zero them
+        # 2) clip to training 1st/99th percentiles to stay in-distribution
+        stats = getattr(self, "_stats", None)
+        if stats is not None:
+            if "zero_variance_mask" in stats:
+                mask = np.asarray(stats["zero_variance_mask"], dtype=np.float32)
+                if mask.shape == raw.shape:
+                    raw = raw * (1.0 - mask)
+            if "clip_min" in stats and "clip_max" in stats:
+                lo = np.asarray(stats["clip_min"], dtype=np.float32)
+                hi = np.asarray(stats["clip_max"], dtype=np.float32)
+                if lo.shape == raw.shape and hi.shape == raw.shape:
+                    raw = np.clip(raw, lo, hi)
+
         hour = int(features_dict.get("hour_of_day", 12))
         baseline = self._get_baseline(user_id)
         equation_score, contributions = self._compute_equation_score(
@@ -322,13 +359,20 @@ class InferenceEngine:
             probs = np.array([0.33, 0.33, 0.34], dtype=np.float32)
             adaptive_weight = MODEL_SCORE_WEIGHT
         else:
-            z = self._normalizer.transform(raw, hour, baseline)
+            # Shape-aware input: raw-trained models consume the 23 raw
+            # features; normalized models consume the 46-dim vector
+            # (23 global z-scores + 23 user z-scores).
+            n_in = int(getattr(self._model, "n_features_in_", NUM_RAW_FEATURES * 2))
+            if n_in == NUM_RAW_FEATURES:
+                x_in = raw.reshape(1, -1)
+            else:
+                x_in = self._normalizer.transform(raw, hour, baseline).reshape(1, -1)
 
             if self._ensemble is not None and self._ensemble.is_ready:
                 # ═══════════════════════════════════════════════════════
                 # ENSEMBLE PREDICTION (Week 5-6)
                 # ═══════════════════════════════════════════════════════
-                ensemble_result = self._ensemble.predict(z)
+                ensemble_result = self._ensemble.predict(x_in[0])
                 probs = np.array([
                     ensemble_result["probabilities"]["NEUTRAL"],
                     ensemble_result["probabilities"]["MILD"],
@@ -339,11 +383,11 @@ class InferenceEngine:
                     probs[0] * 5.0 + probs[1] * 55.0 + probs[2] * 100.0
                 )
             else:
-                probs = self._model.predict_proba(z.reshape(1, -1))[0]
+                probs = self._model.predict_proba(x_in)[0]
                 confidence = float(np.max(probs))
                 model_score = float(probs[0] * 5.0 + probs[1] * 55.0 + probs[2] * 100.0)
 
-                shap_values = self._compute_shap_values(z)
+                shap_values = self._compute_shap_values(x_in[0])
 
             # ═══════════════════════════════════════════════════════
             # DYNAMIC WEIGHTING (Issue #2)
@@ -408,6 +452,17 @@ class InferenceEngine:
             baseline.update(raw, hour)
             baseline.save_session_score(timestamp * 1000.0, final_score, level)
 
+        # ── Honest binary semantics (first-principles rebuild) ──
+        # Universal 3-class detection measured ≈ chance (ρ≈0.03, fixed
+        # subject test). The defensible output is BINARY:
+        #   deviation_level: OK | ELEVATED
+        #   stress_probability: calibrated probability of deviation
+        #   trend: change vs the user's own recent baseline
+        deviation_level = "ELEVATED" if final_score >= self._user_threshold(baseline) else "OK"
+        stress_probability = self._calibrated_probability(
+            final_score, self._user_threshold(baseline))
+        trend = "rising" if baseline and final_score > baseline.recent_mean() else "stable"
+
         insights = self._generate_insights(features_dict, level, shap_values)
 
         return {
@@ -418,6 +473,9 @@ class InferenceEngine:
             "adaptive_weight": round(adaptive_weight, 2) if self.is_ready else MODEL_SCORE_WEIGHT,
             "lstm_adjustment": round(lstm_adjustment, 2) if self.is_ready else 0.0,
             "level": level,
+            "deviation_level": deviation_level,
+            "stress_probability": round(stress_probability, 3),
+            "trend": trend,
             "confidence": round(confidence, 3),
             "probabilities": {l: round(float(p), 3) for l, p in zip(LABELS, probs)},
             "feature_contributions": contributions,

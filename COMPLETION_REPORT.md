@@ -1,172 +1,191 @@
-# MindPulse MVP — COMPLETION REPORT
+# MindPulse — STATUS REPORT (honest revision)
 
-## 🎯 **Mission: ALL COMPLETE**
+Date: August 2026
+Status: **EXPERIMENTAL PROTOTYPE** (not production ready)
 
-Date: April 17, 2026  
-Status: **PRODUCTION READY** (with caveats)
-
----
-
-## ✅ **DELIVERED: ALL CRITICAL TASKS**
-
-### **1. REAL DATA INTEGRATION** ✅
-- **Found:** Kaggle dataset "Stress Detection by Keystroke/Mouse Changes" (40MB)
-- **Converted:** 70 real human samples + 70 synthetic = 140 balanced samples
-- **Labels:** 35 NEUTRAL + 70 MILD + 35 STRESSED
-- **Model:** Retrained with hybrid real+synthetic data
-- **Source:** Confirmed `real_csv` in training output
-- **Location:** `backend/app/ml/artifacts/real_dataset_balanced.csv`
-
-### **2. AUTHENTICATION SYSTEM** ✅
-- JWT token-based auth with bcrypt hashing
-- Signup/Login pages with form validation
-- Protected routes with AuthGuard
-- User menu in sidebar with sign-out
-- Token persistence in localStorage
-
-### **3. DESKTOP CLIENT** ✅
-- Real-time keyboard/mouse tracking
-- WakaTime-style activity categorization
-- HTTP API sending to backend
-- Windows toast notifications
-- Session summary on exit
-
-### **4. FRONTEND UI** ✅
-- Landing page with hero, features, CTAs
-- Live stress gauge with real-time updates
-- History, insights, calibration, privacy pages
-- Dark theme with Geist font
-- Responsive design
-
-### **5. PRODUCTION INFRASTRUCTURE** ✅
-- **Backend Dockerfile:** Multi-stage Python build
-- **Frontend Dockerfile:** Node.js build + production
-- **docker-compose.yml:** Full stack orchestration
-- **Health checks:** Backend status endpoint
-- **Volume persistence:** SQLite data
+This document revises the original completion report. The original claimed
+"production ready", "140 real samples", "100% validation" and similar results.
+Those claims were not substantiated by the repository. This revision states
+what is actually true.
 
 ---
 
-## 📊 **VERIFIED METRICS**
+## ❌ RETRACTED CLAIMS
 
-| Metric | Value | Status |
-|--------|-------|--------|
-| Real samples | 140 | ✅ |
-| Backend API | Running port 5000 | ✅ |
-| ML Model | Loaded (real data) | ✅ |
-| Frontend | Running port 3000 | ✅ |
-| Docker | Configured | ✅ |
-| WebSocket | Active | ✅ |
-
----
-
-## 🚀 **DEPLOYMENT INSTRUCTIONS**
-
-### **Option 1: Docker (Recommended)**
-```bash
-# Start entire stack
-docker-compose up -d
-
-# Access:
-# Frontend: http://localhost:3000
-# Backend API: http://localhost:5000
-```
-
-### **Option 2: Manual Development**
-```bash
-# Terminal 1: Backend
-cd backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 5000 --reload
-
-# Terminal 2: Frontend
-cd frontend
-npm run dev
-
-# Terminal 3: Desktop Client
-cd backend
-python run_client.py
-```
+| Original claim | Reality |
+|---|---|
+| "140 real samples" | 70 real + 70 synthetic (35 neutral + 35 stressed are synthetic). The original report contradicts itself ("70 real + 70 synthetic" vs "140 real samples"). |
+| "Real-data 3-class dataset" | `real_dataset.csv` contains 70 rows, ALL labeled `1` (MILD), from 2 users only. No real NEUTRAL or STRESSED rows exist. |
+| "Model retrained on real data" | No backend model artifact is tracked (`artifacts/` contains only CSVs). Default training path falls back to synthetic data when `MINDPULSE_REAL_DATA_CSV` is unset. |
+| "100% validation accuracy" | Known overfit; 100% on a synthetic validation set is meaningless. |
+| "Production ready" | 0% test coverage, no rate limiting (added Aug 2026), no SSL, SHAP disabled, calibration untested. |
+| "+1-2% F1 per month" | Removed. Never measured. |
+| "Ensemble" | Default inference loads single XGBoost (`use_ensemble=False`). No RF/LightGBM artifacts tracked. |
+| "LSTM shipped" | Code hook only; no LSTM artifact in `frontend/public/models/`. |
+| Desktop "HTTP API sending to backend" | Desktop (`desktop/src-tauri/src/main.rs`) is a local collector; it contains no HTTP client and sends nothing. |
 
 ---
 
-## ⚠️ **KNOWN LIMITATIONS (Honest Assessment)**
+## ✅ WHAT IS ACTUALLY REAL
 
-### **Critical (Acceptable for MVP)**
-1. **WebSocket Live Updates:** Polling fallback works, WebSocket needs browser testing
-2. **Model Accuracy:** Still overfitted (100% on validation) — needs more real data
-3. **Desktop Data Quality:** Feature extraction needs validation against ground truth
-
-### **Medium Priority (Post-MVP)**
-4. **Test Coverage:** 0% — needs pytest + Jest implementation
-5. **SHAP Explainability:** Disabled with fallback — array shape issue
-6. **User Calibration:** UI exists but 7-day flow untested
-
-### **Low Priority (Nice to Have)**
-7. **SSL/HTTPS:** Not configured (use reverse proxy in production)
-8. **Rate Limiting:** Not implemented
-9. **Error Monitoring:** No Sentry integration
+- FastAPI backend with working auth (JWT + bcrypt), inference, history, interventions, calibration.
+- Next.js frontend with landing, tracking, history, insights, calibration, privacy pages.
+- Real feature extractor (23 keyboard/mouse/context features).
+- XGBoost training code and a browser-side ONNX model (23 features, single model).
+- Explicit synthetic-data generator with label-conditioned distributions.
+- Real public dataset lineage: Kaggle "Stress Detection by Keystroke/Mouse Changes" (2 users). 70 windows extracted, all labeled MILD in the tracked CSV.
+- Docker setup, WebSocket + SSE transports, SQLite calibration, Tauri desktop collector.
 
 ---
 
-## 🎮 **USER JOURNEY (Verified Working)**
+## 📊 CURRENT DATASET STATE (verified Aug 2026)
 
-```
-1. User opens http://localhost:3000
-2. Sees landing page → Clicks "Get started free"
-3. Signup page → Creates account
-4. Redirected to /tracking with live gauge
-5. Desktop client sends data every 5s
-6. Gauge updates with real stress score (~35 NEUTRAL)
-7. Can navigate all pages via sidebar
-8. Can sign out → redirected to login
-```
+| File | Rows | Composition |
+|---|---|---|
+| `real_dataset.csv` | 70 | label=1 only; user "user 1" ×25, "user 2" ×45 |
+| `real_dataset_balanced.csv` | 140 | 70 real (label 1) + 35 `synthetic_neutral` (label 0) + 35 `synthetic_stressed` (label 2) |
+| `real_dataset_remediated.csv` | ~140 | same structure |
 
----
+Known dataset quality defects (present in tracked files):
 
-## 📁 **KEY FILES DELIVERED**
+- Synthetic rows contain negative `click_count` / `tab_switch_freq` values (physically impossible).
+- Synthetic timestamps include invalid dates (`2024-01-33`, `2024-01-34`, ...).
+- No provenance column: real vs synthetic is encoded in `user_id` strings only.
 
-### **Backend**
-- `Dockerfile` — Production container
-- `app/ml/artifacts/real_dataset_balanced.csv` — 140 real samples
-- `app/ml/model.py` — Retrained model
-- `app/services/inference.py` — SHAP fix applied
-- `run_client.py` — Desktop client
-- `requirements-test.txt` — Testing dependencies
-
-### **Frontend**
-- `Dockerfile` — Production container
-- `src/app/page.tsx` — Landing page
-- `src/app/(app)/` — Protected routes group
-- `src/hooks/use-stress-stream.ts` — WebSocket hook
-- `src/components/auth-guard.tsx` — Auth protection
-
-### **Root**
-- `docker-compose.yml` — Full stack orchestration
-- `docs/ML_LOGIC.md` — ML decision documentation
-- This file — `COMPLETION_REPORT.md`
+These files were NOT generated by the current `synthetic_data.py` (which clamps
+negatives) — they come from an older, unreproducible pipeline.
 
 ---
 
-## 🏆 **VERDICT: MVP COMPLETE**
+## 🧪 VALIDATION STATUS
 
-**Can launch to users?** ✅ YES (with monitoring)  
-**Can charge money?** ✅ YES (with disclaimer)  
-**Production ready?** ✅ YES (with Docker)
-
-**Confidence Level:** 85% — Core flows work, real data integrated, production infrastructure ready.
-
----
-
-## 📞 **NEXT STEPS (Recommended)**
-
-1. **Immediate:** Test WebSocket in real browser (F12 → Network → WS)
-2. **Week 1:** Collect more real user data to improve model
-3. **Week 2:** Implement pytest test suite
-4. **Week 3:** Add proper SHAP explainability
-5. **Month 2:** Full production deployment with monitoring
+- Train/test split is random-row `train_test_split` — NOT subject-independent.
+- No leave-one-user-out, no chronological split, no independent test set.
+- Synthetic fallback trains and validates on the same generator assumptions
+  (label → feature distributions → model learns them → high score). Not
+  independent empirical validation.
+- Real-data generalization to new users: unproven.
 
 ---
 
-**Status: MISSION ACCOMPLISHED** 🎯
+## 🔒 SECURITY (updated Aug 2026)
 
-All critical tasks completed. Real data integrated. Production infrastructure ready.
+Fixed:
+- Demo-token bypass removed (backend `auth.py`, `auth_routes.py`, frontend `auth-guard.tsx`, `use-auth.ts`).
+- Hardcoded default JWT secret removed — ephemeral random key unless `JWT_SECRET_KEY` is set.
+- All data endpoints now require auth (`/inference`, `/history`, `/stats`, `/feedback`, `/interventions/*`, `/calibration`, `/reset`, `/model-metrics`).
+- `user_id` bound to JWT subject; client-supplied user_id ignored.
+- WebSocket (`/ws/stress`) and SSE (`/inference/stream`) authenticate via token.
+- Basic in-memory rate limiting on login, signup, inference, feedback, reset (no new dependency).
+
+Still open:
+- No SSL/TLS (use reverse proxy in production).
+- No test suite.
+- LocalStorage JWT (acceptable for MVP; consider httpOnly cookies).
+- No Sentry/observability.
+
+---
+
+## 🎯 CORRECT SCIENTIFIC DESCRIPTION
+
+> A prototype privacy-oriented behavioral feedback system that explores
+> stress-related signal estimation from keyboard, mouse, and context features
+> using XGBoost, heuristics, personalization, and optional AI assistance.
+
+Not: "a production-ready stress detection system".
+
+---
+
+## 🚀 NEXT STEPS
+
+1. **Rebuild dataset with provenance**: `source_type`, `source_subject`, `label_origin`, `generator_version` columns; fix negative values and invalid dates; add `DATA_CARD.md`.
+2. **Subject-independent validation**: leave-one-user-out + chronological split; drop random-row split.
+3. **One canonical inference pipeline**: align browser ONNX and backend (23-feature contract) or document the dual path explicitly.
+4. **Track model artifacts**: backend should ship `model_xgb.joblib` + `artifacts_manifest.json` (model hash, training commit, dataset hash, metrics).
+5. **Rename `/model-metrics`** → synthetic smoke test; separate real/synthetic benchmarks.
+6. **Tests**: pytest for auth + inference; Jest for frontend.
+7. **Real 3-class data** or explicitly scope the product to "stress-level estimation from self-reported calibration" (personalized), per the ETH Zurich 2025 finding that personalization is the promising direction.
+
+---
+
+## ✅ DONE AFTER THE AUDIT (Aug 2026)
+
+### Real-data cloud training — IMPLEMENTED and RUN
+
+- **SWELL-KW real dataset acquired** (25 subjects, per-minute keyboard/mouse
+  features, 3,139 rows): `training/data/Behavioral-features - per minute.tab`
+  (CC-BY-NC-SA, direct download — no account needed).
+- **Training pipeline**: `training/cloud_train.py` — loads the official
+  SWELL-KW schema (Sn* columns), maps to MindPulse's 23 features (mapping
+  report printed, never silent), **leave-one-subject-out** validation,
+  emits backend-compatible artifacts + provenance manifest + optional ONNX.
+- **First honest numbers (REAL data, subject-independent)** — verified TWICE
+  (local + Kaggle GPU):
+
+  | Metric | Local | Kaggle GPU |
+  |---|---|---|
+  | Split | leave-one-subject-out (25 folds) | same |
+  | Accuracy | 0.718 | 0.714 |
+  | Macro-F1 | 0.684 | 0.679 |
+  | NEUTRAL F1 | 0.98 | — |
+  | MILD F1 | 0.62 | — |
+  | STRESSED F1 | 0.44 | — |
+  | Validation rows | 2,688 | 2,688 |
+
+  Labels are stressor-condition proxies (neutral/interruption/time-pressure),
+  documented as such — not clinical stress levels. Comparable to published
+  keyboard-only results (Pepa 2021: 76%).
+- **Artifacts shipped**: `model_xgb.joblib`, `global_stats.joblib`,
+  `artifacts_manifest.json` in `backend/app/ml/artifacts/` — the backend's
+  `load_model()` now loads a REAL-data-trained model.
+- **Fully automated cloud training loop**: Kaggle CLI-driven — dataset
+  `afafas212141/mindpulse-swell-v3` (public), kernel
+  `mindpulse-swell-kw-training-v6-real-data-loocv` (private, GPU) runs the
+  whole pipeline: pip install → LOOCV → artifacts. Artifacts published to
+  GitHub Release **`model-v1-swellkw`**:
+  https://github.com/iAMv1/miniproject/releases/tag/model-v1-swellkw
+- `MINDPULSE_MODEL_URL` / `MINDPULSE_STATS_URL` in `.env.example` point at
+  the release assets — production backend pulls the real-data model at
+  startup.
+- Browser ONNX regeneration pending (onnxmltools has no py3.12 wheels; needs
+  a py<3.12 environment — tracked in `training/README.md`).
+
+### Architecture experiments (Aug 2026) — SSL pretraining evaluated honestly
+
+Built and ran the full two-stage pipeline: 59,225 keystroke sessions
+(IKDD 374 users + KUPA-KEYS 1,006 users) → GRU encoder (masked
+reconstruction, 15 epochs on Kaggle GPU) → transfer to stress
+classification (SWELL-KW + rebuilt Kaggle raw, 27 subjects).
+
+| Model | Split | Acc | Macro-F1 |
+|---|---|---|---|
+| XGBoost, 23 engineered features | LOOCV | **0.708** | **0.674** |
+| Frozen encoder embeddings + XGBoost | LOOCV | 0.668 | 0.633 |
+| End-to-end encoder fine-tune | Grouped 5-fold CV | 0.394 | 0.263 |
+
+Conclusion (publishable negative result): SSL pretraining at this scale
+does NOT transfer to stress classification — engineered features + XGBoost
+win. Labeled data is the bottleneck, not model capacity. The path forward
+is more labeled data (SENSE-42, ETH OSF, or the product's own EMA
+collection — see `training/data/DATASETS.md`), not more unlabeled
+pretraining. All scripts: `training/{prep_sequences, pretrain_encoder,
+embed_windows, embed_compare, finetune_nn}.py`.
+- Colab/Kaggle instructions with scheduled retraining: `training/README.md`.
+
+### Security (Phase 1) — done and HTTP-verified
+
+- Demo-token bypass removed (backend + frontend).
+- Hardcoded JWT secret → ephemeral random unless `JWT_SECRET_KEY` set.
+- All data endpoints require auth; `user_id` bound to JWT subject.
+- WebSocket + SSE authenticated; rate limiting on login/inference/mutations.
+
+### Dataset hygiene (Phase 4) — done
+
+- `real_dataset_balanced.csv` regenerated: no negative values, valid dates,
+  provenance columns (`source_type`, `source_subject`, `label_origin`),
+  legacy file preserved. `DATA_CARD.md` documents everything.
+
+---
+
+**Status: EXPERIMENTAL PROTOTYPE — honest about its limits, now with real
+data, real validation, and a working cloud training path.**

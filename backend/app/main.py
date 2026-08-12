@@ -10,6 +10,8 @@ from app.core.config import APP_NAME, VERSION, DESCRIPTION
 from app.api.routes import router
 from app.api.auth_routes import router as auth_router
 from app.api.extended_routes import router as extended_router
+from app.api.telemetry import router as telemetry_router
+from app.api.ema import router as ema_router
 from app.services.inference import engine
 
 logging.basicConfig(
@@ -54,6 +56,8 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(router, prefix="/api/v1")
 app.include_router(extended_router)
+app.include_router(telemetry_router, prefix="/api/v1")
+app.include_router(ema_router, prefix="/api/v1")
 
 
 @app.get("/")

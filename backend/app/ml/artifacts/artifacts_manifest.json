@@ -1,0 +1,32 @@
+{
+  "model_id": "mindpulse-xgb-v2-tuned",
+  "dataset": "SWELL-KW (25 subj, 2688 min) + Kaggle-raw rebuilt (2 subj, 86 windows, real self-report labels)",
+  "dataset_sha256": "69dc198473d062a2f8a25dc5d1fbd1d188202d64b73ee6471b8e85fe971145cc",
+  "tuned_hyperparameters": {
+    "subsample": 1.0,
+    "reg_lambda": 4.0,
+    "reg_alpha": 0.0,
+    "n_estimators": 400,
+    "min_child_weight": 5,
+    "max_depth": 5,
+    "learning_rate": 0.05,
+    "gamma": 0.0,
+    "colsample_bytree": 1.0
+  },
+  "metrics_validation": {
+    "split": "leave_one_subject_out, 3 repeats (27 subjects, 8322 held-out rows)",
+    "accuracy": 0.708,
+    "f1_macro": 0.672,
+    "precision_macro": 0.67,
+    "recall_macro": 0.673,
+    "per_class_f1": {
+      "NEUTRAL": 0.96,
+      "MILD": 0.62,
+      "STRESSED": 0.43
+    },
+    "spearman_rho_pooled": 0.09,
+    "spearman_rho_per_subject_mean": 0.25,
+    "benchmarks": "ETH 2025: pooled 0.078, per-subject 0.188-0.296 | Pepa 2021: 76% kb acc"
+  },
+  "trained_at": "2026-08-12T00:00:00Z"
+}

@@ -18,14 +18,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const token = localStorage.getItem("mp_token");
     if (!token) {
-      localStorage.setItem("mp_token", "demo");
-      localStorage.setItem("mp_user", JSON.stringify({
-        id: 0,
-        email: "demo@mindpulse.app",
-        username: "demo",
-        display_name: "Demo User",
-      }));
-      setChecked(true);
+      router.replace("/login");
+      return;
     } else {
       setChecked(true);
     }

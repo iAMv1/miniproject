@@ -1,5 +1,12 @@
 {
   "ensemble": {
+    "provenance": {
+      "trained_on": "raw synthetic features (23), no normalization (export_onnx_models.py)",
+      "validation": "synthetic held-out samples only",
+      "note": "This browser model is NOT the same pipeline as the backend. Backend uses DualNormalizer (23 raw -> 46 dim: global + user z-scores). Predictions from browser ONNX and backend /inference are NOT directly comparable. Unify before claiming a single model.",
+      "training_commit": "unknown",
+      "dataset_hash": "unknown"
+    },
     "models": [
       {
         "name": "xgboost",
