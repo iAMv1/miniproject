@@ -100,8 +100,8 @@ async def google_oauth_start():
     """Initiate Google OAuth flow, generating a CSRF state token."""
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(
-            status_code=500,
-            detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.",
+            status_code=503,
+            detail="Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the backend .env.",
         )
 
     state = secrets.token_urlsafe(32)
