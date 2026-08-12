@@ -15,3 +15,6 @@ training/data/embed_inputs.npz
 training/data/encoder.pt
 __pycache__/
 *.pyc
+backend/app/ml/artifacts/history.db
+backend/app/ml/artifacts/users.db
+
