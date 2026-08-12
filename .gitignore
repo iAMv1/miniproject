@@ -18,6 +18,7 @@ __pycache__/
 backend/app/ml/artifacts/history.db
 backend/app/ml/artifacts/users.db
 
+<<<<<<< Updated upstream
 # Frontend build and local dependency artifacts
 frontend/node_modules/
 frontend/.next/
@@ -25,3 +26,11 @@ frontend/tsconfig.tsbuildinfo
 
 # Local runtime data created during integration tests
 telemetry.db
+=======
+backend/extended.db
+backend/app/ml/artifacts/online_learning.db
+backend/app/ml/artifacts/user_baselines_*.db
+desktop/src-tauri/target/
+backend/.env
+
+>>>>>>> Stashed changes

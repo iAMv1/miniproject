@@ -89,7 +89,7 @@ Respond ONLY with JSON in this exact format:
                     api_key=gemini_key,
                     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                 )
-                self._model = "gemini-2.5-flash"
+                self._model = "gemini-flash-latest"
                 return
             except Exception as e:
                 print(f"Gemini init failed: {e}")
@@ -255,7 +255,7 @@ Tone: Helpful, welcoming, clear (2-3 sentences)."""
                     api_key=gemini_key,
                     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
                 )
-                self._model = "gemini-2.5-flash"
+                self._model = "gemini-flash-latest"
                 return
             except Exception as e:
                 print(f"Gemini init failed: {e}")
@@ -431,3 +431,4 @@ async def classify_intent(message: str) -> tuple[str, float]:
     """Classify user intent."""
     result = await intent_classifier.classify(message, [])
     return result.agent, result.confidence
+

@@ -54,8 +54,8 @@ async def generate_response(
     
     # Get user context from local SQLite (via existing services)
     try:
-        from app.services.history import get_recent_stats
-        stats = get_recent_stats(user_id, hours=24)
+        from app.services.history import get_stats
+        stats = get_stats(user_id)
         has_data = stats.get("total_samples", 0) > 0
     except Exception:
         has_data = False
