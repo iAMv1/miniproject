@@ -1,0 +1,45 @@
+{
+  "dataset_version": "v3",
+  "dataset_sha256": "c7d4d10fcfa34f5a8cb7775620f5e3216b90bef772f036ef565138a707e9d5f3",
+  "n_rows": 2774,
+  "n_subjects": 27,
+  "dev_rows": 2152,
+  "test_rows": 622,
+  "dev_subjects": [
+    "PP10",
+    "PP11",
+    "PP12",
+    "PP13",
+    "PP14",
+    "PP15",
+    "PP16",
+    "PP19",
+    "PP20",
+    "PP22",
+    "PP23",
+    "PP24",
+    "PP25",
+    "PP3",
+    "PP4",
+    "PP5",
+    "PP7",
+    "PP8",
+    "PP9",
+    "kaggle_user1",
+    "kaggle_user2"
+  ],
+  "test_subjects": [
+    "PP1",
+    "PP17",
+    "PP18",
+    "PP2",
+    "PP21",
+    "PP6"
+  ],
+  "seed": 42,
+  "test_fraction": 0.2,
+  "per_source_rows": {
+    "swell": 2688,
+    "kaggle_raw": 86
+  }
+}
