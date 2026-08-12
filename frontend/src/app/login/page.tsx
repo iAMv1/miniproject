@@ -53,7 +53,7 @@ function LoginForm() {
   const handleGoogleSignIn = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/tracking` },
     });
     if (error) setError(error.message);
   };
@@ -357,3 +357,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+

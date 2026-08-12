@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
 import { motion, useReducedMotion } from "framer-motion";
 import { ScrollRhythm } from "@/components/scroll-rhythm";
 import {
@@ -83,6 +85,14 @@ const states = [
 export default function LandingPage() {
   const router = useRouter();
   const start = () => router.push("/signup");
+
+  // Post-login landing: if a Supabase session exists (e.g. returning from
+  // the Google OAuth callback), forward straight into the app.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace("/tracking");
+    });
+  }, [router]);
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#080A12] text-white">
