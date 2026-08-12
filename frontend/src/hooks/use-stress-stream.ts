@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { StressResult } from "@/lib/types";
+import { supabase, inferStress } from "@/lib/supabase";
 
 type ConnectionStatus = "connected" | "connecting" | "disconnected" | "error";
 
@@ -13,140 +14,111 @@ interface UseStressStreamReturn {
   wsRef: React.MutableRefObject<WebSocket | null>;
 }
 
+const POLL_MS = 5000;
+
+// Placeholder features when the collector hasn't delivered a real vector.
+// The infer edge function zero-masks and clips per the training guards.
+const DEFAULT_FEATURES: Record<string, number> = {
+  hold_time_mean: 0, hold_time_std: 0, hold_time_median: 0,
+  flight_time_mean: 0, flight_time_std: 0, typing_speed_wpm: 45,
+  error_rate: 0.08, pause_frequency: 0, pause_duration_mean: 0,
+  burst_length_mean: 0, rhythm_entropy: 0, mouse_speed_mean: 180,
+  mouse_speed_std: 90, direction_change_rate: 1.5, click_count: 12,
+  rage_click_count: 1, scroll_velocity_std: 10, tab_switch_freq: 2,
+  switch_entropy: 0.8, session_fragmentation: 0, hour_of_day: 12,
+  day_of_week: 2, session_duration_min: 30,
+};
+
 export function useStressStream(): UseStressStreamReturn {
   const [data, setData] = useState<StressResult | null>(null);
   const [history, setHistory] = useState<StressResult[]>([]);
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
+  const pollTimer = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(false);
+  const featuresRef = useRef<Record<string, number>>(DEFAULT_FEATURES);
 
-  const connect = useCallback(() => {
-    // Only run in browser
-    if (typeof window === "undefined") return;
-    
-    const baseUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:5000/api/v1/ws/stress";
-    const token = typeof window !== "undefined" ? localStorage.getItem("mp_token") : null;
-    const url = token
-      ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}`
-      : baseUrl;
-    
+  const pollOnce = useCallback(async () => {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session) {
+      setStatus("disconnected");
+      return;
+    }
     try {
-      setStatus("connecting");
+      const d = await inferStress(featuresRef.current);
+      const probs = d.probabilities ?? { NEUTRAL: 0.33, MILD: 0.33, STRESSED: 0.34 };
+      const result: StressResult = {
+        score: Number(d.score ?? 0),
+        model_score: Number(d.score ?? 0),
+        equation_score: Number(d.score ?? 0),
+        final_score: Number(d.score ?? 0),
+        level: d.level ?? "UNKNOWN",
+        deviation_level: d.deviation_level ?? "OK",
+        stress_probability: Number(d.stress_probability ?? 0),
+        confidence: Math.max(probs.NEUTRAL ?? 0, probs.MILD ?? 0, probs.STRESSED ?? 0),
+        probabilities: probs,
+        feature_contributions: {},
+        insights: [],
+        timestamp: Date.now() / 1000,
+        typing_speed_wpm: Number(featuresRef.current.typing_speed_wpm ?? 0),
+        error_rate: Number(featuresRef.current.error_rate ?? 0),
+        click_count: Number(featuresRef.current.click_count ?? 0),
+        mouse_speed_mean: Number(featuresRef.current.mouse_speed_mean ?? 0),
+        alert_state: (d.deviation_level ?? "OK") === "ELEVATED" ? "EARLY_WARNING" : "NORMAL",
+        intervention: null,
+        trend: "steady",
+        recovery_score: (d.deviation_level ?? "OK") === "ELEVATED" ? 40 : 80,
+      };
+      if (!isMounted.current) return;
+      setStatus("connected");
       setError(null);
-      
-      const ws = new WebSocket(url);
-      
-      ws.onopen = () => {
-        if (!isMounted.current) return;
-        reconnectAttemptsRef.current = 0;
-        setStatus("connected");
-        setError(null);
-      };
-      
-      ws.onclose = (event) => {
-        if (!isMounted.current) return;
-        setStatus("disconnected");
-        
-        // Don't reconnect if closed cleanly
-        if (event.wasClean) return;
-        
-        reconnectAttemptsRef.current += 1;
-        const jitter = Math.floor(Math.random() * 800);
-        const backoff = Math.min(10000, 2000 + reconnectAttemptsRef.current * 500 + jitter);
-        
-        reconnectTimer.current = setTimeout(() => {
-          if (isMounted.current) connect();
-        }, backoff);
-      };
-      
-      ws.onerror = (err) => {
-        if (!isMounted.current) return;
-        setStatus("error");
-        setError("WebSocket connection failed");
-        console.error("[MindPulse WS] Connection error:", err);
-      };
-      
-      ws.onmessage = (e) => {
-        if (!isMounted.current) return;
-        
-        try {
-          const msg = JSON.parse(e.data);
-          
-          if (msg.type === "ping") {
-            ws.send(JSON.stringify({ type: "pong", timestamp: Date.now() }));
-            return;
-          }
-          
-          if (msg.type === "stress_update") {
-            const result: StressResult = {
-              score: msg.score,
-              model_score: msg.model_score,
-              equation_score: msg.equation_score,
-              final_score: msg.final_score,
-              level: msg.level,
-              deviation_level: msg.deviation_level,
-              stress_probability: msg.stress_probability,
-              signal_state: msg.signal_state,
-              input_quality: msg.input_quality,
-              activity_features_observed: msg.activity_features_observed,
-              signal_message: msg.signal_message,
-              confidence: msg.confidence,
-              probabilities: msg.probabilities,
-              feature_contributions: msg.feature_contributions ?? {},
-              insights: msg.insights || [],
-              timestamp: msg.timestamp || Date.now(),
-              typing_speed_wpm: msg.typing_speed_wpm ?? 0,
-              rage_click_count: msg.rage_click_count ?? 0,
-              error_rate: msg.error_rate ?? 0,
-              click_count: msg.click_count ?? 0,
-              mouse_speed_mean: msg.mouse_speed_mean ?? 0,
-              mouse_reentry_count: msg.mouse_reentry_count ?? 0,
-              mouse_reentry_latency_ms: msg.mouse_reentry_latency_ms ?? 0,
-              alert_state: msg.alert_state ?? "NORMAL",
-              intervention: msg.intervention ?? null,
-              trend: msg.trend ?? "steady",
-              recovery_score: msg.recovery_score ?? 0,
-            };
-            setData(result);
-            setHistory((prev) => [...prev.slice(-120), result]);
-          } else if (msg.type === "session_reset") {
-            setData(null);
-            setHistory([]);
-          }
-        } catch (err) {
-          console.error("[MindPulse WS] Message parse error:", err);
-        }
-      };
-      
-      wsRef.current = ws;
-    } catch (err) {
+      setData(result);
+      setHistory((prev) => [...prev.slice(-120), result]);
+    } catch (e) {
+      if (!isMounted.current) return;
       setStatus("error");
-      setError("Failed to create WebSocket connection");
-      console.error("[MindPulse WS] Setup error:", err);
+      setError(e instanceof Error ? e.message : "Inference failed");
     }
   }, []);
 
+  const connect = useCallback(() => {
+    if (typeof window === "undefined") return;
+    if (pollTimer.current) clearInterval(pollTimer.current);
+    setStatus("connecting");
+    pollOnce();
+    pollTimer.current = setInterval(pollOnce, POLL_MS);
+  }, [pollOnce]);
+
   useEffect(() => {
     isMounted.current = true;
-    
-    // Delay connection to avoid SSR issues
     const timer = setTimeout(() => {
       if (isMounted.current) connect();
     }, 100);
-    
     return () => {
       isMounted.current = false;
-      if (reconnectTimer.current) {
-        clearTimeout(reconnectTimer.current);
-      }
-      if (wsRef.current) {
-        wsRef.current.close(1000, "Component unmounting");
-      }
+      if (pollTimer.current) clearInterval(pollTimer.current);
+      if (timer) clearTimeout(timer);
     };
   }, [connect]);
+
+  // Compat shim: pages may call wsRef.current.send() — accept a feature
+  // payload to use for the next inference.
+  wsRef.current = {
+    send: (raw: string) => {
+      try {
+        const msg = JSON.parse(raw);
+        if (msg.type === "features" && msg.features) {
+          featuresRef.current = { ...DEFAULT_FEATURES, ...msg.features };
+          pollOnce();
+        }
+      } catch {
+        /* ignore non-JSON or unknown messages */
+      }
+    },
+    close: () => undefined,
+    readyState: 1,
+  } as unknown as WebSocket;
 
   return { data, history, status, error, wsRef };
 }
