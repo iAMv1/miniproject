@@ -99,7 +99,7 @@ async def chat_stream(
     message = req.message
     
     # Classify intent
-    agent_type, confidence = classify_intent(message)
+    agent_type, confidence = await classify_intent(message)
     
     # Create session if needed
     if not session_id:
@@ -413,3 +413,4 @@ async def get_dataset_stats(
         return {"success": True, "stats": stats}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
