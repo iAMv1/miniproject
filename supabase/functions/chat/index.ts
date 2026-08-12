@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+        "Access-Control-Allow-Headers": "*",
         "Access-Control-Max-Age": "86400",
       },
     });
@@ -72,3 +72,4 @@ Deno.serve(async (req) => {
     });
   }
 });
+
