@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
-import { clearToken } from "@/lib/api";
+import { useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { Activity, Clock, Lightbulb, Heart, Shield, Eye, MessageSquare, Sparkles, Target } from "lucide-react";
 
 const NAV = [
@@ -23,20 +23,11 @@ const NEW_FEATURES = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [user, setUser] = useState<{ display_name: string; email: string } | null>(null);
+  const { user, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("mp_user");
-    if (stored) {
-      try { setUser(JSON.parse(stored)); } catch { setUser(null); }
-    }
-  }, []);
-
   const handleLogout = () => {
-    clearToken();
-    localStorage.removeItem("mp_user");
-    window.location.href = "/login";
+    logout();
   };
 
   return (
@@ -98,10 +89,10 @@ export default function Sidebar() {
       {user && (
         <div className="relative border-t border-[rgba(142,153,178,0.16)] px-3 py-3 max-md:px-2">
           <button onClick={() => setMenuOpen(!menuOpen)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#141420] transition text-left">
-            <div className="w-7 h-7 rounded-full bg-[#5b4fc4]/20 flex items-center justify-center text-[#5b4fc4] text-xs font-semibold">{user.display_name.charAt(0).toUpperCase()}</div>
+            <div className="w-7 h-7 rounded-full bg-[#5b4fc4]/20 flex items-center justify-center text-[#5b4fc4] text-xs font-semibold">{(user.email ?? "U").charAt(0).toUpperCase()}</div>
             <div className="min-w-0 flex-1 max-md:hidden">
-              <div className="text-xs font-medium text-[#F2EFE9] truncate">{user.display_name}</div>
-              <div className="text-[10px] text-[#857F75] truncate">{user.email}</div>
+              <div className="text-xs font-medium text-[#F2EFE9] truncate">{user.email ?? "User"}</div>
+              <div className="text-[10px] text-[#857F75] truncate">{user.id?.slice(0, 8)}</div>
             </div>
           </button>
           {menuOpen && (

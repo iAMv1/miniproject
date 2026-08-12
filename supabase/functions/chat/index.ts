@@ -13,6 +13,17 @@ concrete micro-breaks, and never diagnose or give medical advice. If the user
 mentions severe distress, gently suggest professional support.`;
 
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+        "Access-Control-Max-Age": "86400",
+      },
+    });
+  }
   if (req.method !== "POST") {
     return new Response("method not allowed", { status: 405 });
   }
