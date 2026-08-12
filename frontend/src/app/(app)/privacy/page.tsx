@@ -1,36 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useAuth } from "@/hooks/use-auth";
+import {
+  isTrackingPaused,
+  setTrackingPaused,
+  TRACKING_PREFERENCE_EVENT,
+} from "@/lib/tracking-consent";
 
 export default function PrivacyPage() {
-  const { userId } = useAuth();
   const [actionStatus, setActionStatus] = useState<string | null>(null);
+  const [trackingPaused, setTrackingPausedState] = useState(false);
 
-  const handlePause = async () => {
-    setActionStatus("pause");
-    try {
-      await api.reset(userId);
-      setActionStatus("paused");
-    } catch {
-      setActionStatus("error");
-    }
+  useEffect(() => {
+    const syncPreference = () => setTrackingPausedState(isTrackingPaused());
+    syncPreference();
+    window.addEventListener(TRACKING_PREFERENCE_EVENT, syncPreference);
+    return () => window.removeEventListener(TRACKING_PREFERENCE_EVENT, syncPreference);
+  }, []);
+
+  const handlePause = () => {
+    const nextPaused = !trackingPaused;
+    setTrackingPaused(nextPaused);
+    setTrackingPausedState(nextPaused);
+    setActionStatus(nextPaused ? "paused" : "resumed");
   };
 
   const handleExport = async () => {
     setActionStatus("export");
     try {
-      const history = await api.history(userId, 168);
-      const csv = [
-        "timestamp,score,level,typing_speed_wpm,error_rate",
-        ...history.map((h) => `${h.timestamp},${h.score},${h.level},${h.typing_speed_wpm},${h.error_rate}`),
-      ].join("\n");
-      const blob = new Blob([csv], { type: "text/csv" });
+      const exportData = await api.exportMyData();
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `mindpulse-data-${new Date().toISOString().split("T")[0]}.csv`;
+      a.download = `mindpulse-data-${new Date().toISOString().split("T")[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
       setActionStatus("exported");
@@ -43,7 +47,9 @@ export default function PrivacyPage() {
     if (!confirm("Delete all your data? This cannot be undone.")) return;
     setActionStatus("delete");
     try {
-      await api.reset(userId);
+      await api.deleteMyBehavioralData();
+      setTrackingPaused(true);
+      setTrackingPausedState(true);
       setActionStatus("deleted");
     } catch {
       setActionStatus("error");
@@ -104,8 +110,7 @@ export default function PrivacyPage() {
           ))}
         </div>
         <p className="text-xs text-muted mt-4">
-          All processing happens locally. Raw keystrokes are never stored or transmitted.
-          Only derived behavioral features are used for prediction.
+          Feature extraction can run on your device. If telemetry sync is enabled, the service stores privacy-minimized event metadata; key values are transformed server-side and raw typed content is not persisted. Derived behavioral features are used for prediction.
         </p>
         <p className="text-xs text-muted mt-2">
           Intervention feedback stores only action/outcome metadata (helped, not helped, skipped) and score deltas.
@@ -122,9 +127,10 @@ export default function PrivacyPage() {
             "bg-accent/10 text-accent"
           }`}>
             {actionStatus === "pause" && "Pausing tracking..."}
-            {actionStatus === "paused" && "Tracking paused. All data cleared."}
+            {actionStatus === "paused" && "Tracking is paused on this device. Stored data is unchanged."}
+            {actionStatus === "resumed" && "Tracking resumed on this device."}
             {actionStatus === "export" && "Preparing your data..."}
-            {actionStatus === "exported" && "Data exported as CSV."}
+            {actionStatus === "exported" && "Your locally stored service data was exported as JSON."}
             {actionStatus === "delete" && "Deleting all data..."}
             {actionStatus === "deleted" && "All data deleted."}
             {actionStatus === "error" && "Something went wrong. Try again."}
@@ -134,19 +140,19 @@ export default function PrivacyPage() {
           <div className="flex items-center justify-between py-3 border-b border-border/50">
             <div>
               <div className="text-sm font-medium text-white">Pause tracking</div>
-              <div className="text-xs text-muted mt-0.5">Temporarily stop all data collection</div>
+              <div className="text-xs text-muted mt-0.5">{trackingPaused ? "Collection is paused on this device" : "Temporarily stop local collection on this device"}</div>
             </div>
             <button
               onClick={handlePause}
               className="px-4 py-2 rounded-md border border-border text-sm font-medium hover:bg-surface-hover transition-all duration-200 hover:scale-[0.98] active:scale-[0.96]"
             >
-              Pause
+              {trackingPaused ? "Resume" : "Pause"}
             </button>
           </div>
           <div className="flex items-center justify-between py-3 border-b border-border/50">
             <div>
               <div className="text-sm font-medium text-white">Export my data</div>
-              <div className="text-xs text-muted mt-0.5">Download all your data as CSV</div>
+              <div className="text-xs text-muted mt-0.5">Download locally stored service data as JSON</div>
             </div>
             <button
               onClick={handleExport}
@@ -158,7 +164,7 @@ export default function PrivacyPage() {
           <div className="flex items-center justify-between py-3">
             <div>
               <div className="text-sm font-medium text-white">Delete all data</div>
-              <div className="text-xs text-muted mt-0.5">Permanently remove all stored data</div>
+              <div className="text-xs text-muted mt-0.5">Permanently remove locally stored behavioral data; your account remains</div>
             </div>
             <button
               onClick={handleDelete}

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  isTrackingPaused,
+  TRACKING_PREFERENCE_EVENT,
+} from "@/lib/tracking-consent";
 
 interface FeatureAccumulator {
   holdTimes: number[];
@@ -174,8 +178,17 @@ export function useFeatureCollector(
   const lastMouseRef = useRef<{ x: number; y: number; t: number } | null>(null);
   const mouseMoveThrottleRef = useRef(0);
   const isMountedRef = useRef(false);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    const syncPreference = () => setPaused(isTrackingPaused());
+    syncPreference();
+    window.addEventListener(TRACKING_PREFERENCE_EVENT, syncPreference);
+    return () => window.removeEventListener(TRACKING_PREFERENCE_EVENT, syncPreference);
+  }, []);
 
   const flush = useCallback(() => {
+    if (paused) return;
     const acc = accRef.current;
     if (acc.keyPressCount === 0 && acc.clickTimestamps.length === 0 && acc.mouseSpeeds.length === 0) return;
 
@@ -184,9 +197,13 @@ export function useFeatureCollector(
       wsSend(JSON.stringify({ type: "features", features, user_id: userId }));
     }
     accRef.current = createAccumulator();
-  }, [wsSend, userId]);
+  }, [paused, wsSend, userId]);
 
   useEffect(() => {
+    if (paused) {
+      accRef.current = createAccumulator();
+      return;
+    }
     isMountedRef.current = true;
     const flushTimer = setInterval(flush, windowMs);
 
@@ -287,7 +304,7 @@ export function useFeatureCollector(
       window.removeEventListener("scroll", handleScroll);
       flush();
     };
-  }, [wsSend, userId, windowMs, flush]);
+  }, [paused, wsSend, userId, windowMs, flush]);
 
   return { flush };
 }

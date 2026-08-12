@@ -2,6 +2,13 @@
   "model_id": "mindpulse-xgb-v2-tuned",
   "dataset": "SWELL-KW (25 subj, 2688 min) + Kaggle-raw rebuilt (2 subj, 86 windows, real self-report labels)",
   "dataset_sha256": "69dc198473d062a2f8a25dc5d1fbd1d188202d64b73ee6471b8e85fe971145cc",
+  "feature_contract": {
+    "raw_feature_count": 23,
+    "runtime_input": "All 23 behavioral feature values are required by the API.",
+    "training_limitation": "The staged SWELL-KW per-minute source does not provide hold, flight, pause, or rhythm event features; those fields were zero-filled during the documented mapping. Do not interpret them as measured SWELL-KW observations.",
+    "runtime_safeguard": "The API now reports signal_state and input_quality; low-activity windows abstain from a behavioral conclusion."
+  },
+  "label_semantics": "SWELL-KW labels combine stressor-condition proxies and subjective measures; they are not clinical stress ground truth.",
   "tuned_hyperparameters": {
     "subsample": 1.0,
     "reg_lambda": 4.0,

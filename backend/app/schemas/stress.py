@@ -68,6 +68,20 @@ class InferenceResponse(BaseModel):
     stress_probability: Optional[float] = Field(
         default=None, description="Calibrated probability of deviation (0-1), not clinical"
     )
+    signal_state: str = Field(
+        default="CALIBRATING",
+        description="READY | CALIBRATING | INSUFFICIENT_ACTIVITY | UNAVAILABLE",
+    )
+    input_quality: str = Field(
+        default="population_prior",
+        description="Measured input quality used to qualify the behavioral signal",
+    )
+    activity_features_observed: int = Field(
+        default=0, ge=0, description="Number of non-zero activity signals in this window"
+    )
+    signal_message: str = Field(
+        default="", description="Plain-language context for the current signal state"
+    )
     confidence: float = Field(..., ge=0, le=1)
     probabilities: Dict[str, float]
     feature_contributions: Dict[str, float] = Field(

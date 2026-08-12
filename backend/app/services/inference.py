@@ -14,6 +14,7 @@ from app.core.config import (
     MODEL_SCORE_WEIGHT,
 )
 from app.ml.feature_extractor import NUM_RAW_FEATURES
+from app.ml.signal_quality import assess_signal_quality
 
 # ═══════════════════════════════════════════════════════════════
 # DYNAMIC HYBRID WEIGHTING (Issue #2 Fix)
@@ -448,22 +449,30 @@ class InferenceEngine:
 
         timestamp = time.time()
 
-        if baseline:
+        # ── Honest binary semantics and runtime abstention ──
+        # The score is an internal trend measure. The user-facing state adds
+        # input activity and personal calibration context before any conclusion.
+        is_calibrated = baseline is not None and baseline.is_calibrated()
+        quality = assess_signal_quality(
+            features_dict, calibrated=is_calibrated, model_ready=self.is_ready
+        )
+        # Do not learn a personal baseline from an empty or unavailable window.
+        if baseline and quality["signal_state"] not in {"INSUFFICIENT_ACTIVITY", "UNAVAILABLE"}:
             baseline.update(raw, hour)
             baseline.save_session_score(timestamp * 1000.0, final_score, level)
-
-        # ── Honest binary semantics (first-principles rebuild) ──
-        # Universal 3-class detection measured ≈ chance (ρ≈0.03, fixed
-        # subject test). The defensible output is BINARY:
-        #   deviation_level: OK | ELEVATED
-        #   stress_probability: calibrated probability of deviation
-        #   trend: change vs the user's own recent baseline
         deviation_level = "ELEVATED" if final_score >= self._user_threshold(baseline) else "OK"
         stress_probability = self._calibrated_probability(
             final_score, self._user_threshold(baseline))
         trend = "rising" if baseline and final_score > baseline.recent_mean() else "stable"
+        if quality["signal_state"] in {"INSUFFICIENT_ACTIVITY", "UNAVAILABLE"}:
+            deviation_level = "UNKNOWN"
+            stress_probability = None
+            level = "UNKNOWN"
+            trend = "unknown"
 
         insights = self._generate_insights(features_dict, level, shap_values)
+        if quality["signal_state"] != "READY":
+            insights = [str(quality["message"])] + insights
 
         return {
             "score": round(final_score, 1),
@@ -474,7 +483,11 @@ class InferenceEngine:
             "lstm_adjustment": round(lstm_adjustment, 2) if self.is_ready else 0.0,
             "level": level,
             "deviation_level": deviation_level,
-            "stress_probability": round(stress_probability, 3),
+            "stress_probability": round(stress_probability, 3) if stress_probability is not None else None,
+            "signal_state": quality["signal_state"],
+            "input_quality": quality["input_quality"],
+            "activity_features_observed": quality["activity_features_observed"],
+            "signal_message": quality["message"],
             "trend": trend,
             "confidence": round(confidence, 3),
             "probabilities": {l: round(float(p), 3) for l, p in zip(LABELS, probs)},
@@ -512,11 +525,11 @@ class InferenceEngine:
                 readable = feat_name.replace("_", " ")
                 if impact > 0:
                     insights.append(
-                        f"{readable.capitalize()} is {direction} stress likelihood"
+                        f"{readable.capitalize()} is {direction} the current behavioral strain signal"
                     )
                 else:
                     insights.append(
-                        f"{readable.capitalize()} is {direction} stress likelihood"
+                        f"{readable.capitalize()} is {direction} the current behavioral strain signal"
                     )
 
         if features.get("rage_click_count", 0) > 2:
@@ -526,7 +539,7 @@ class InferenceEngine:
         if features.get("error_rate", 0) > 0.1:
             insights.append("Higher than usual error rate — possible cognitive fatigue")
         if features.get("rhythm_entropy", 0) > 3.5:
-            insights.append("Typing rhythm is erratic — stress may be affecting focus")
+            insights.append("Typing rhythm is more variable than usual — focus may be under strain")
         if features.get("session_fragmentation", 0) > 0.7:
             insights.append(
                 "Highly fragmented session — frequent context switching detected"
@@ -543,7 +556,7 @@ class InferenceEngine:
             )
 
         if not insights and level == "STRESSED":
-            insights.append("Multiple behavioral signals indicate elevated stress")
+            insights.append("Multiple behavioral signals suggest an elevated strain trend")
 
         seen = set()
         unique_insights = []
@@ -565,6 +578,10 @@ class InferenceEngine:
             "final_score": 0.0,
             "level": "UNKNOWN",
             "confidence": 0.0,
+            "signal_state": "UNAVAILABLE",
+            "input_quality": "model_unavailable",
+            "activity_features_observed": 0,
+            "signal_message": message,
             "probabilities": {"NEUTRAL": 0.33, "MILD": 0.33, "STRESSED": 0.34},
             "feature_contributions": {},
             "shap_values": None,

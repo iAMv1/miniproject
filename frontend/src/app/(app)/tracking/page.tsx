@@ -113,7 +113,7 @@ function EnergyGauge({ score, level, deviationLevel, stressProbability, trend }:
   score: number;
   level: string;
   deviationLevel?: string;
-  stressProbability?: number;
+  stressProbability?: number | null;
   trend?: string;
 }) {
   const energy = energyFromStress(score);
@@ -656,6 +656,26 @@ export default function TrackingPage() {
           </div>
         </div>
       </div>
+
+      {data?.signal_state && data.signal_state !== "READY" && (
+        <div
+          className="rounded-lg border p-4"
+          style={{
+            borderColor:
+              data.signal_state === "INSUFFICIENT_ACTIVITY" ? "#f0b35b66" : "#8b7cf666",
+            background:
+              data.signal_state === "INSUFFICIENT_ACTIVITY" ? "rgba(240,179,91,0.08)" : "rgba(139,124,246,0.08)",
+          }}
+          role="status"
+        >
+          <p className="text-sm font-medium" style={{ color: "#F4F6FB" }}>
+            {data.signal_state === "CALIBRATING" ? "Personalization is still learning" : "Waiting for more activity"}
+          </p>
+          <p className="mt-1 text-xs" style={{ color: "#8E99B2" }}>
+            {data.signal_message || "MindPulse will show a clearer behavioral trend once enough relevant activity is available."}
+          </p>
+        </div>
+      )}
 
       {/* Wind-Down Banner */}
       {windDown && !windDownDismissed && (

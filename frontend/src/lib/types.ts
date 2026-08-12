@@ -36,8 +36,12 @@ export interface StressResult {
   level: "NEUTRAL" | "MILD" | "STRESSED" | "UNKNOWN";
   /** Honest binary semantics (first-principles rebuild): deviation vs the
    * user's own baseline, not a universal 3-class verdict. */
-  deviation_level?: "OK" | "ELEVATED";
-  stress_probability?: number;
+  deviation_level?: "OK" | "ELEVATED" | "UNKNOWN";
+  stress_probability?: number | null;
+  signal_state?: "READY" | "CALIBRATING" | "INSUFFICIENT_ACTIVITY" | "UNAVAILABLE";
+  input_quality?: string;
+  activity_features_observed?: number;
+  signal_message?: string;
   confidence: number;
   probabilities: Record<string, number>;
   feature_contributions?: Record<string, number>;
@@ -53,7 +57,7 @@ export interface StressResult {
   mouse_reentry_latency_ms?: number;
   alert_state?: "NORMAL" | "EARLY_WARNING" | "BREAK_RECOMMENDED" | "RECOVERY";
   intervention?: InterventionRecommendation | null;
-  trend?: "rising" | "steady" | "falling";
+  trend?: "rising" | "steady" | "falling" | "stable" | "unknown";
   recovery_score?: number;
 }
 

@@ -82,6 +82,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ user_id: userId }),
     }),
+  exportMyData: () =>
+    request<{
+      export_version: number;
+      user_id: string;
+      scope: string;
+      history: Record<string, unknown>[];
+      interventions: Record<string, unknown>[];
+      telemetry: Record<string, unknown>[];
+      ema_checkins: Record<string, unknown>[];
+    }>("/privacy/export"),
+  deleteMyBehavioralData: () =>
+    request<{
+      status: string;
+      account_retained: boolean;
+      deleted: Record<string, boolean | number>;
+    }>("/privacy/data", { method: "DELETE" }),
   modelMetrics: () =>
     request<{
       accuracy: number;
