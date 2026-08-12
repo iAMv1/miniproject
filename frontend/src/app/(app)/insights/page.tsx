@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import type { HistoryPoint } from "@/lib/types";
 import { useAuth } from "@/hooks/use-auth";
 import {
   BarChart,
@@ -618,11 +619,11 @@ export default function InsightsPage() {
 
         // Calculate correlation matrix
         const metricKeys = [
-          { label: "Energy", getValue: (e: any) => 100 - e.score },
-          { label: "WPM", getValue: (e: any) => e.typing_speed_wpm },
-          { label: "Error Rate", getValue: (e: any) => e.error_rate },
-          { label: "Rage Clicks", getValue: (e: any) => e.rage_click_count },
-          { label: "Mouse Speed", getValue: (e: any) => e.mouse_speed_mean },
+          { label: "Energy", getValue: (e: HistoryPoint) => 100 - e.score },
+          { label: "WPM", getValue: (e: HistoryPoint) => e.typing_speed_wpm },
+          { label: "Error Rate", getValue: (e: HistoryPoint) => e.error_rate },
+          { label: "Rage Clicks", getValue: (e: HistoryPoint) => e.rage_click_count },
+          { label: "Mouse Speed", getValue: (e: HistoryPoint) => e.mouse_speed_mean },
         ];
 
         function pearson(x: number[], y: number[]): number | null {
@@ -644,7 +645,9 @@ export default function InsightsPage() {
         }
 
         const series = metricKeys.map((m) =>
-          history.map((e) => m.getValue(e)).filter((v) => v !== null && !isNaN(v))
+          history
+            .map((e) => m.getValue(e))
+            .filter((v): v is number => v !== null && v !== undefined && !isNaN(v))
         );
 
         // Align lengths by using minimum length

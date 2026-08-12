@@ -1,5 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import type { Session, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import { BASE } from "@/lib/api";
 
 const secret = process.env.NEXTAUTH_SECRET;
@@ -30,7 +32,11 @@ const handlerConfig = {
 
           if (!res.ok) return null;
 
-          const data = await res.json();
+          const data = (await res.json()) as {
+            user?: { id?: number | string; email?: string; display_name?: string };
+            access_token?: string;
+          };
+          if (!data.user?.id || !data.access_token) return null;
 
           return {
             id: String(data.user.id),
@@ -45,14 +51,14 @@ const handlerConfig = {
     }),
   ],
   callbacks: {
-    async jwt({ token, user }: { token: any; user: any }) {
+    async jwt({ token, user }: { token: JWT; user: User }) {
       if (user) {
         token.id = user.id;
         token.token = user.token;
       }
       return token;
     },
-    async session({ session, token }: { session: any; token: any }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         session.user.id = token.id;
         session.user.token = token.token;
@@ -65,7 +71,7 @@ const handlerConfig = {
   },
 };
 
-const { handlers, signIn, signOut, auth } = NextAuth(handlerConfig);
+const { handlers } = NextAuth(handlerConfig);
 
 export const GET = handlers.GET;
 export const POST = handlers.POST;

@@ -21,19 +21,19 @@ export default function CalibrationPage() {
     <div className="p-8 space-y-8 max-w-6xl mx-auto">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Calibration</h1>
-        <p className="text-sm text-muted mt-1.5">Build your personal stress baseline for accurate detection</p>
+        <p className="text-sm text-muted mt-1.5">Build a personal rhythm baseline for clearer signals</p>
       </div>
 
       {/* Why Calibration */}
       <div className="rounded-lg border border-accent/20 bg-accent/[0.04] p-6">
         <h3 className="text-lg font-medium mb-3 text-white">Why calibration matters</h3>
         <p className="text-sm text-muted">
-          Stress is highly individual. A "universal" model achieves only 25-40% accuracy because
-          each person types differently. By building your personal baseline over 7 days, MindPulse
-          learns your normal patterns and detects deviations — pushing accuracy to 55-70%.
+          Stress and workload are personal. Your typing and mouse patterns can change for many reasons,
+          so MindPulse uses calibration to learn your normal rhythm and highlight meaningful deviations.
+          This is a behavioral signal, not a diagnosis or a guarantee of accuracy.
         </p>
         <p className="text-xs text-muted mt-3">
-          Source: ETH Zurich 2025 — "One does not fit all: personalised approaches show encouraging potential"
+          Personalization is the direction supported by current research; your feedback keeps the signal grounded in your context.
         </p>
       </div>
 
@@ -119,7 +119,7 @@ export default function CalibrationPage() {
           </li>
           <li className="flex gap-3">
             <span className="text-accent font-bold tabular-nums">2.</span>
-            <span>Self-report your stress level every 30 minutes (builds ground truth)</span>
+            <span>Share a quick self-report when prompted (teaches the system your context)</span>
           </li>
           <li className="flex gap-3">
             <span className="text-accent font-bold tabular-nums">3.</span>
@@ -127,7 +127,7 @@ export default function CalibrationPage() {
           </li>
           <li className="flex gap-3">
             <span className="text-accent font-bold tabular-nums">4.</span>
-            <span>After 7 days, your personal model activates automatically</span>
+            <span>After enough coverage, your personalized deviation signal becomes more useful</span>
           </li>
         </ol>
       </div>

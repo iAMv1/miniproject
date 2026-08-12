@@ -40,8 +40,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-56 border-r border-[#1c1c2e] bg-[#0a0a0f] flex flex-col flex-shrink-0">
-      <div className="px-5 py-5 border-b border-[#1c1c2e]">
+    <aside className="app-sidebar sticky top-0 z-30 flex h-dvh w-56 flex-shrink-0 flex-col border-r border-[rgba(142,153,178,0.16)] bg-[rgba(8,10,18,0.82)] backdrop-blur-xl max-md:w-[4.5rem]" aria-label="Primary navigation">
+      <div className="border-b border-[rgba(142,153,178,0.16)] px-4 py-5 max-md:px-2">
         <div className="flex items-center gap-3">
           <svg viewBox="0 0 40 40" className="w-8 h-8" fill="none">
             <defs>
@@ -54,13 +54,13 @@ export default function Sidebar() {
             <path d="M 6 20 L 13 20 L 15 20 L 17 14 L 19 26 L 21 10 L 23 24 L 25 17 L 27 20 L 34 20" stroke="url(#sideLogoGrad)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
             <circle cx="20" cy="20" r="2" fill="url(#sideLogoGrad)" />
           </svg>
-          <div>
-            <div className="text-sm font-medium text-[#F2EFE9] tracking-tight">MindPulse</div>
-            <p className="text-[10px] text-[#857F75]">rhythm, understood</p>
+          <div className="max-md:hidden">
+            <div className="text-sm font-semibold tracking-tight text-[#F4F6FB]">MindPulse</div>
+            <p className="text-[10px] text-[#8E99B2]">rhythm, understood</p>
           </div>
         </div>
       </div>
-      <nav className="flex-1 px-2 py-3 space-y-0.5">
+      <nav className="flex-1 space-y-0.5 px-2 py-4" aria-label="MindPulse sections">
         {NAV.map((item) => {
           const active = pathname.startsWith(item.href);
           return (
@@ -68,16 +68,16 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                active ? "bg-[#5b4fc4]/15 text-[#5b4fc4] font-medium" : "text-[#857F75] hover:bg-[#141420] hover:text-[#F2EFE9]"
+                active ? "bg-[#8b7cf6]/15 text-[#b8b1ff] font-medium shadow-[inset_3px_0_0_#8b7cf6]" : "text-[#8e99b2] hover:bg-[#192038] hover:text-[#f4f6fb]"
               }`}
             >
-              <item.icon className="w-4 h-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="max-md:hidden">{item.label}</span>
             </Link>
           );
         })}
         <div className="pt-3 pb-1 px-3">
-          <div className="text-[9px] uppercase tracking-[0.2em] text-[#857F75]/30">New</div>
+          <div className="text-[9px] uppercase tracking-[0.2em] text-[#8e99b2]/45 max-md:hidden">More</div>
         </div>
         {NEW_FEATURES.map((item) => {
           const active = pathname.startsWith(item.href);
@@ -86,33 +86,33 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-200 ${
-                active ? "bg-[#5b4fc4]/15 text-[#5b4fc4] font-medium" : "text-[#857F75] hover:bg-[#141420] hover:text-[#F2EFE9]"
+                active ? "bg-[#8b7cf6]/15 text-[#b8b1ff] font-medium shadow-[inset_3px_0_0_#8b7cf6]" : "text-[#8e99b2] hover:bg-[#192038] hover:text-[#f4f6fb]"
               }`}
             >
-              <item.icon className="w-4 h-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="max-md:hidden">{item.label}</span>
             </Link>
           );
         })}
       </nav>
       {user && (
-        <div className="px-3 py-3 border-t border-[#1c1c2e] relative">
+        <div className="relative border-t border-[rgba(142,153,178,0.16)] px-3 py-3 max-md:px-2">
           <button onClick={() => setMenuOpen(!menuOpen)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-[#141420] transition text-left">
             <div className="w-7 h-7 rounded-full bg-[#5b4fc4]/20 flex items-center justify-center text-[#5b4fc4] text-xs font-semibold">{user.display_name.charAt(0).toUpperCase()}</div>
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1 max-md:hidden">
               <div className="text-xs font-medium text-[#F2EFE9] truncate">{user.display_name}</div>
               <div className="text-[10px] text-[#857F75] truncate">{user.email}</div>
             </div>
           </button>
           {menuOpen && (
-            <div className="absolute bottom-14 left-2 right-2 bg-[#141420] border border-[#1c1c2e] rounded-lg shadow-lg p-1 z-50">
+            <div className="absolute bottom-14 left-2 right-2 z-50 rounded-xl border border-[rgba(142,153,178,0.2)] bg-[#111626] p-1 shadow-2xl">
               <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-xs text-[#dc2626] hover:bg-[#1c1c2e] rounded-md transition">Sign out</button>
             </div>
           )}
         </div>
       )}
       {!user && (
-        <div className="px-3 py-3 border-t border-[#1c1c2e]">
+        <div className="border-t border-[rgba(142,153,178,0.16)] px-3 py-3 max-md:px-2">
           <Link href="/login" className="block px-3 py-2 rounded-md text-xs font-medium text-[#5b4fc4] hover:bg-[#5b4fc4]/10 transition text-center">Sign in</Link>
         </div>
       )}

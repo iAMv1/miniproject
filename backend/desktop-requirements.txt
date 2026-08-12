@@ -1,0 +1,3 @@
+# Optional only for local desktop telemetry capture.
+# Do not install this file in the web/API server image.
+pynput>=1.7.6

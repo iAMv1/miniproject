@@ -13,7 +13,7 @@ export async function signIn(email: string, password: string) {
 
   if (result?.ok && result.error == null) {
     const session = await getSession();
-    const token = (session?.user as any)?.token;
+    const token = session?.user?.token;
     if (token) {
       setToken(token);
     }

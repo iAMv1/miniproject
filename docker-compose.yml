@@ -6,11 +6,9 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-mindpulse-dev-secret-change-in-production}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set}
       - LOG_LEVEL=INFO
       - ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-    volumes:
-      - mindpulse_data:/app/app/ml/artifacts
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"]
       interval: 30s
@@ -29,6 +27,3 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
-
-volumes:
-  mindpulse_data:

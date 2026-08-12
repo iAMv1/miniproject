@@ -13,66 +13,8 @@ import type {
 
 export const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
-// ─── ONNX Browser Inference Integration ───
-let _onnxInitialized = false;
-let _onnxInitPromise: Promise<boolean> | null = null;
-
-async function ensureOnnxReady(): Promise<boolean> {
-  if (_onnxInitialized) return true;
-  if (_onnxInitPromise) return _onnxInitPromise;
-  
-  _onnxInitPromise = (async () => {
-    try {
-      const { browserInference } = await import("./onnx-inference");
-      const ready = await browserInference.init();
-      _onnxInitialized = ready;
-      return ready;
-    } catch {
-      return false;
-    }
-  })();
-  
-  return _onnxInitPromise;
-}
-
-export async function predictInBrowser(features: FeatureVector): Promise<StressResult | null> {
-  const ready = await ensureOnnxReady();
-  if (!ready) return null;
-  
-  const { browserInference } = await import("./onnx-inference");
-  const result = await browserInference.predictEnsemble(
-    Object.values(features).slice(0, 23) as number[]
-  );
-  
-  if (!result) return null;
-  
-  const score =
-    result.probabilities["NEUTRAL"] * 5 +
-    result.probabilities["MILD"] * 55 +
-    result.probabilities["STRESSED"] * 100;
-  
-  return {
-    score: Math.round(score * 10) / 10,
-    level: result.prediction as StressResult["level"],
-    confidence: result.confidence,
-    probabilities: result.probabilities,
-    insights: [],
-    timestamp: Date.now(),
-    model_score: score,
-    equation_score: 0,
-    final_score: score,
-    feature_contributions: {},
-    typing_speed_wpm: features.typing_speed_wpm,
-    rage_click_count: features.rage_click_count,
-    error_rate: features.error_rate,
-    click_count: features.click_count,
-    mouse_speed_mean: features.mouse_speed_mean,
-    alert_state: "NORMAL",
-    intervention: null,
-    trend: "steady",
-    recovery_score: 0,
-  };
-}
+type ChatToolParams = Record<string, unknown>;
+type StreamFeatures = Record<string, number>;
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -116,16 +58,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ features, user_id: userId }),
     }),
-  inferenceWithFallback: async (features: FeatureVector, userId: string = "default") => {
-    // Try browser ONNX inference first (zero server cost, full privacy)
-    const browserResult = await predictInBrowser(features);
-    if (browserResult) return browserResult;
-    // Fallback to server
-    return request<StressResult>("/inference", {
+  // The backend is the single source of truth for model weights, preprocessing,
+  // calibration, history, and interventions. Browser ONNX remains an offline
+  // experiment and is intentionally not used for live product predictions.
+  inferenceWithFallback: (features: FeatureVector, userId: string = "default") =>
+    request<StressResult>("/inference", {
       method: "POST",
       body: JSON.stringify({ features, user_id: userId }),
-    });
-  },
+    }),
   history: (userId: string = "default", hours: number = 24) =>
     request<HistoryPoint[]>(`/history?user_id=${userId}&hours=${hours}`),
   stats: (userId: string = "default") =>
@@ -237,7 +177,7 @@ export const api = {
       onClassification?: (agentType: string) => void;
       onDone?: (fullResponse: string) => void;
       onError?: (error: Error) => void;
-      onToolRequest?: (tool: { tool: string; params: any; request_id: string }) => void;
+      onToolRequest?: (tool: { tool: string; params: ChatToolParams; request_id: string }) => void;
     }
   ) => {
     const token = getToken();
@@ -306,7 +246,7 @@ export const api = {
   inferenceStream: (
     userId: string,
     callbacks: {
-      onUpdate?: (data: { score: number; level: string; confidence: number; features: any }) => void;
+      onUpdate?: (data: { score: number; level: string; confidence: number; features: StreamFeatures }) => void;
       onHeartbeat?: () => void;
       onError?: (error: Error) => void;
     },

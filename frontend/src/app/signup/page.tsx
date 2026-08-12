@@ -2,9 +2,10 @@
 
 import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { api, setToken } from "@/lib/api";
-import { ArrowRight, Eye, EyeOff, Sparkles, Check, Chrome } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Sparkles, Chrome } from "lucide-react";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
@@ -57,8 +58,8 @@ function SignupForm() {
       setToken(result.access_token);
       localStorage.setItem("mp_user", JSON.stringify(result.user));
       router.push(from);
-    } catch (err: any) {
-      setError(err.message || "Signup failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Signup failed");
     } finally {
       setLoading(false);
     }
@@ -319,14 +320,14 @@ function SignupForm() {
         <motion.div className="mt-8 text-center space-y-3" initial={{ opacity: 0 }} animate={isReady ? { opacity: 1 } : {}} transition={{ delay: 0.8 }}>
           <p className="text-xs text-[#857F75]">
             Already have an account?{" "}
-            <a href="/login" className="text-[#5b4fc4] hover:text-[#8b7fd4] transition-colors">
+            <Link href="/login" className="text-[#5b4fc4] hover:text-[#8b7fd4] transition-colors">
               Sign in
-            </a>
+            </Link>
           </p>
           <p className="text-xs text-[#857F75]">
-            <a href="/" className="text-[#857F75] hover:text-[#F2EFE9] transition-colors">
+            <Link href="/" className="text-[#857F75] hover:text-[#F2EFE9] transition-colors">
               Back to home
-            </a>
+            </Link>
           </p>
         </motion.div>
       </motion.div>

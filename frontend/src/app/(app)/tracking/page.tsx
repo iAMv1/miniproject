@@ -7,6 +7,8 @@ import { useFeatureCollector } from "@/hooks/use-feature-collector";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api";
 import type { UserStats, InterventionRecommendation, StressResult } from "@/lib/types";
+
+type TrendPoint = { day: string; stress: number; energy: number; wpm: number; errors: number };
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend, Area, AreaChart
@@ -365,7 +367,7 @@ export default function TrackingPage() {
   useFeatureCollector(wsSend, userId, 30000);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [polledData, setPolledData] = useState<StressResult | null>(null);
-  const [trendData, setTrendData] = useState<any[]>([]);
+  const [trendData, setTrendData] = useState<TrendPoint[]>([]);
   const prevLevelRef = useRef<string>("UNKNOWN");
   const notifPermissionRef = useRef<boolean>(false);
   const stressStreakRef = useRef<number>(0);

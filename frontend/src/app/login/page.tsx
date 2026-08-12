@@ -2,6 +2,7 @@
 
 import { useState, FormEvent, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { api, setToken } from "@/lib/api";
 import { ArrowRight, Eye, EyeOff, Sparkles, Chrome } from "lucide-react";
@@ -48,8 +49,8 @@ function LoginForm() {
       setToken(result.access_token);
       localStorage.setItem("mp_user", JSON.stringify(result.user));
       router.replace(from);
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
       setLoading(false);
     }
   };
@@ -335,14 +336,14 @@ function LoginForm() {
         >
           <p className="text-xs text-[#857F75]">
             Don&apos;t have an account?{" "}
-            <a href="/signup" className="text-[#5b4fc4] hover:text-[#8b7fd4] transition-colors">
+            <Link href="/signup" className="text-[#5b4fc4] hover:text-[#8b7fd4] transition-colors">
               Create one
-            </a>
+            </Link>
           </p>
           <p className="text-xs text-[#857F75]">
-            <a href="/" className="text-[#857F75] hover:text-[#F2EFE9] transition-colors">
+            <Link href="/" className="text-[#857F75] hover:text-[#F2EFE9] transition-colors">
               Back to home
-            </a>
+            </Link>
           </p>
         </motion.div>
       </motion.div>
