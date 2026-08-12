@@ -3,6 +3,17 @@
 Compact handoff for a fresh session. All work is in this repo; read this file
 instead of a long chat history.
 
+## REPO STATE (remembered commit)
+- HEAD: `07f01da` "feat: restore responsive landing rhythm" — synced with
+  origin/main (pulled Aug 12, ~19:5x UTC). Base of my work: `abd088c`.
+- USER'S CHANGES after my push (6 commits): privacy controls + signal
+  safeguards (`2c42f2d`), inference-contract stabilization + dashboard UX
+  polish (`4426dc4`), landing claims aligned with runtime behavior
+  (`3b321ef`), landing narrative overhaul (`ed7c3df`), new components:
+  `scroll-rhythm.tsx`, `tracking-consent.ts`, `scripts/build.js`,
+  `types/next-auth.d.ts`, backend tests (`test_signal_quality.py`,
+  `test_smoke.py`). Frontend `page.tsx` massively restructured (-1150 lines).
+
 ## Status
 - Best honest model: XGBoost, 23 features (13 real), LOOCV acc ~0.71 / F1 ~0.67
   BEFORE a data leak was found and removed. POST-FIX numbers pending the
@@ -10,6 +21,9 @@ instead of a long chat history.
 - CRITICAL: `session_duration_min` was a condition proxy (file lists blocks
   N-first for every subject; T blocks shorter by protocol). Zeroed in
   `training/cloud_train.py` (slot kept for contract).
+- UNIVERSAL MODEL MEASURED ≈ CHANCE (ρ 0.026); PER-USER MEDIAN ρ 0.227
+  (ETH range 0.188-0.296) — binary per-user is the only defensible claim.
+  See docs/MODEL_ANALYSIS.md.
 
 ## Verified working
 - Backend boots with real-data model; auth + inference + history E2E tested
