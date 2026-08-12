@@ -18,6 +18,7 @@ create table if not exists chat_sessions (
 create table if not exists chat_messages (
     id uuid primary key default gen_random_uuid(),
     session_id uuid references chat_sessions(id) on delete cascade,
+    user_id uuid references auth.users(id) on delete cascade,
     role text not null,
     content text not null,
     created_at timestamptz default now()
@@ -145,7 +146,9 @@ create policy "own baselines" on user_baselines for all using (auth.uid() = user
 create policy "own interventions" on interventions for all using (auth.uid() = user_id);
 drop policy if exists "own chat sessions" on chat_sessions;
 create policy "own chat sessions" on chat_sessions for all using (auth.uid()::text = user_id);
-create policy "own chat messages" on chat_messages for all using (true);
+alter table chat_messages add column if not exists user_id uuid references auth.users(id) on delete cascade;
+drop policy if exists "own chat messages" on chat_messages;
+create policy "own chat messages" on chat_messages for all using (auth.uid() = user_id);
 drop policy if exists "own wellness" on wellness_checkins;
 create policy "own wellness" on wellness_checkins for all using (auth.uid()::text = user_id);
 drop policy if exists "own insights" on wellness_insights;
@@ -153,3 +156,5 @@ create policy "own insights" on wellness_insights for all using (auth.uid()::tex
 create policy "own focus" on focus_snapshots for all using (auth.uid()::text = user_id);
 drop policy if exists "own shield" on user_shield_settings;
 create policy "own shield" on user_shield_settings for all using (auth.uid()::text = user_id);
+
+

@@ -328,7 +328,7 @@ export const api = {
         const uid = await userId();
         if (uid) {
           await supabase.from("chat_messages").insert({
-            session_id: sessionId, role: "user", content: message,
+            session_id: sessionId, user_id: uid, role: "user", content: message,
           });
         }
         callbacks.onClassification?.("general");
@@ -343,7 +343,7 @@ export const api = {
         }
         if (uid) {
           await supabase.from("chat_messages").insert({
-            session_id: sessionId, role: "assistant", content: reply,
+            session_id: sessionId, user_id: uid, role: "assistant", content: reply,
           });
           await supabase.from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", sessionId);
         }
@@ -511,6 +511,7 @@ export function setToken(_token: string) {
 export function clearToken() {
   // no-op — Supabase owns sessions
 }
+
 
 
 

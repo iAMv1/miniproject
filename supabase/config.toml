@@ -2,4 +2,5 @@ project_id = "mindpulse"
 [functions.infer]
 verify_jwt = false
 [functions.chat]
-verify_jwt = false
+verify_jwt = true
+
