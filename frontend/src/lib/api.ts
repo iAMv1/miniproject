@@ -186,23 +186,35 @@ export const api = {
   },
 
   modelMetrics: async () => ({
-    accuracy: 70.8, precision: 67.0, recall: 67.3, f1: 67.2,
-    confusion_matrix: [[3177, 0, 0], [0, 3105, 0], [0, 0, 2040]],
+    accuracy: 42.6, precision: 39.4, recall: 39.6, f1: 38.9,
+    f1_neutral: 52.9, f1_mild: 42.1, f1_stressed: 21.7,
+    binary_f1: 65.2, ece: 0.098,
+    confusion_matrix: [[140, 81, 23], [81, 98, 43], [64, 65, 27]],
     labels: ["NEUTRAL", "MILD", "STRESSED"],
-    benchmark_type: "synthetic_smoke_test",
-    note: "Model runs server-side in the infer edge function",
+    benchmark_type: "fixed_subject_test_confound_free",
+    note: "Real measured results: 3-class ≈ majority (honest), binary F1 0.65. Universal 3-class is not claimed. Source: training/data/model_report.json",
   }),
 
-  // ── Interventions ──
+  // ── Interventions (real table rows; honest nulls when nothing exists) ──
   interventionRecommendation: async (_userId: string = "default"): Promise<InterventionSnapshot> => {
-    const latest = await api.history("", 1);
+    const latest = await api.history("", 2);
+    if (!latest.length) {
+      return {
+        alert_state: "NORMAL", trend: "steady", recovery_score: null,
+        intervention: null, active_intervention: null, active_start_score: null,
+      } as unknown as InterventionSnapshot;
+    }
     const elevated = latest.some((r) => (r.deviation_level ?? "OK") === "ELEVATED");
+    const trend = latest.length > 1
+      ? (latest[0].score ?? 0) > (latest[1].score ?? 0) ? "rising" : "steady"
+      : "steady";
+    const latestScore = latest[0]?.score ?? 50;
     return {
       alert_state: elevated ? "EARLY_WARNING" : "NORMAL",
-      trend: "stable",
-      recovery_score: elevated ? 40 : 80,
+      trend,
+      recovery_score: Math.max(0, Math.min(100, 100 - latestScore)),
       intervention: elevated
-        ? { intervention_type: "breathing_reset", title: "Take a breath", message: "Your signals are elevated vs your baseline. Try a 60-second breathing reset.", action: "start_break" }
+        ? { intervention_type: "breathing_reset", title: "Elevated vs your baseline", message: "Your behavioral signals are above your personal baseline. A short reset may help.", action: "start_break" }
         : null,
       active_intervention: null,
       active_start_score: null,
@@ -230,11 +242,49 @@ export const api = {
     })) as unknown as InterventionEvent[];
   },
 
-  checkWindDown: async (_userId?: string) => ({ wind_down: null }),
-  scheduleBreak: async (_u: string, breakTime: string, interventionType: string = "breathing_reset") =>
-    ({ status: "ok", break: { id: String(Date.now()), scheduled_for: breakTime, intervention_type: interventionType, status: "scheduled" } }),
-  getScheduledBreaks: async (_userId?: string) => ({ breaks: [] }),
-  cancelBreak: async (_userId?: string, _breakId?: string) => ({ status: "ok", message: "No active break" }),
+  checkWindDown: async (_userId?: string) => {
+    const latest = await api.history("", 1);
+    const rising = latest.length >= 3 && (latest[0].score ?? 0) > (latest[2].score ?? 0);
+    return { wind_down: rising ? { type: "behavioral", title: "Signals trending up", message: "Recent minutes are above your baseline.", severity: "mild", actions: [{ label: "Take a break", action: "start_break" }] } : null };
+  },
+
+  scheduleBreak: async (_u: string, breakTime: string, interventionType: string = "breathing_reset") => {
+    const uid = await userId();
+    if (!uid) throw new Error("not signed in");
+    const { data, error } = await supabase.from("interventions").insert({
+      user_id: uid, action: "schedule_break", intervention_type: interventionType,
+      notes: `scheduled_for=${breakTime}`,
+    }).select().single();
+    if (error) throw error;
+    return { status: "ok", break: { id: String(data.id), scheduled_for: breakTime, intervention_type: interventionType, status: "scheduled" } };
+  },
+
+  getScheduledBreaks: async (_userId?: string) => {
+    const uid = await userId();
+    const { data } = uid
+      ? await supabase.from("interventions").select("*").eq("user_id", uid).eq("action", "schedule_break").order("created_at", { ascending: false }).limit(20)
+      : { data: null };
+    const rows = (data ?? []) as { id: string; notes: string; intervention_type: string; created_at: string }[];
+    return {
+      breaks: rows.map((r) => ({
+        id: String(r.id),
+        scheduled_for: (r.notes ?? "").replace("scheduled_for=", "") || r.created_at,
+        intervention_type: r.intervention_type ?? "",
+        status: "scheduled",
+        created_at: r.created_at,
+      })),
+    };
+  },
+
+  cancelBreak: async (_userId?: string, breakId?: string) => {
+    if (!breakId) return { status: "ok", message: "No break id provided" };
+    const uid = await userId();
+    if (!uid) return { status: "ok", message: "Not signed in" };
+    const { error } = await supabase.from("interventions").delete().eq("id", breakId).eq("user_id", uid);
+    if (error) throw error;
+    return { status: "ok", message: "Break cancelled" };
+  },
+
   checkDueBreaks: async (_userId?: string) => ({ due_break: null }),
 
   // ── Chat (storage via tables, answers via edge function) ──
@@ -359,14 +409,19 @@ export const api = {
     const { data } = uid
       ? await supabase.from("focus_snapshots").select("*").eq("user_id", uid).order("created_at", { ascending: false }).limit(1).maybeSingle()
       : { data: null };
+    if (!data) {
+      // no snapshots yet — honest empty state, no fabricated score
+      return { success: true, state: { flow_score: 0, deep_work_minutes: 0, context_switches: 0, is_in_flow: false, suggestion: undefined, has_data: false } };
+    }
     return {
       success: true,
       state: {
-        flow_score: Number(data?.focus_score ?? 60),
-        deep_work_minutes: Number(data?.deep_work_minutes ?? 0),
-        context_switches: Number(data?.context_switches ?? 0),
-        is_in_flow: Number(data?.focus_score ?? 60) >= 65,
+        flow_score: Number(data.focus_score ?? 0),
+        deep_work_minutes: Number(data.deep_work_minutes ?? 0),
+        context_switches: Number(data.context_switches ?? 0),
+        is_in_flow: Number(data.focus_score ?? 0) >= 65,
         suggestion: undefined,
+        has_data: true,
       },
     };
   },
@@ -375,7 +430,7 @@ export const api = {
     const { data } = uid
       ? await supabase.from("user_shield_settings").select("*").eq("user_id", uid).maybeSingle()
       : { data: null };
-    return { success: true, shield: { enabled: Boolean(data?.enabled), context_switches: 0, tab_hopping: 0, mouse_agitation: "low" } };
+    return { success: true, shield: { enabled: Boolean(data?.enabled), context_switches: 0, tab_hopping: 0, mouse_agitation: "unknown" } };
   },
   toggleShield: async (enabled: boolean) => {
     const uid = await userId();
@@ -383,15 +438,39 @@ export const api = {
     await supabase.from("user_shield_settings").upsert({ user_id: uid, enabled, updated_at: new Date().toISOString() });
     return { success: true, enabled };
   },
-  getEnergyForecast: async () => ({
-    success: true,
-    forecast: {
-      peak_hour: "10:00", peak_energy: 80,
-      energy_curve: Array.from({ length: 12 }, (_, i) => ({ hour: 8 + i, hour_label: `${8 + i}:00`, energy: 50 + 20 * Math.sin((i - 2) / 3) })),
-      suggested_schedule: [{ time: "10:00", activity: "Deep work", energy: "high" }],
-      confidence: "low",
-    },
-  }),
+  getEnergyForecast: async () => {
+    // Derived from the user's REAL score history: hourly average score.
+    const rows = await api.history("", 72);
+    if (rows.length < 6) {
+      return { success: true, forecast: null, message: "Not enough data yet — collect more sessions for an energy forecast." };
+    }
+    const byHour: Record<number, { sum: number; n: number }> = {};
+    for (const r of rows) {
+      const h = new Date(r.timestamp * 1000).getHours();
+      byHour[h] = byHour[h] || { sum: 0, n: 0 };
+      byHour[h].sum += r.score ?? 0;
+      byHour[h].n += 1;
+    }
+    const curve = Object.entries(byHour)
+      .map(([hour, v]) => {
+        const energy = Math.max(0, Math.min(100, 100 - v.sum / v.n));
+        return { hour: Number(hour), hour_label: `${hour}:00`, energy: Math.round(energy), samples: v.n };
+      })
+      .sort((a, b) => a.hour - b.hour);
+    const peak = curve.reduce((a, b) => (b.energy > a.energy ? b : a), curve[0]);
+    const busy = curve.filter((c) => c.energy >= 65).sort((a, b) => b.energy - a.energy);
+    return {
+      success: true,
+      forecast: {
+        peak_hour: `${peak.hour}:00`,
+        peak_energy: peak.energy,
+        energy_curve: curve,
+        suggested_schedule: busy.slice(0, 3).map((c) => ({ time: `${c.hour}:00`, activity: "Deep work", energy: c.energy >= 75 ? "high" : "medium" })),
+        confidence: rows.length >= 50 ? "medium" : "low",
+        derived_from_samples: rows.length,
+      },
+    };
+  },
 
   // ── Streams (Supabase Realtime-free: polling the edge function) ──
   inferenceStream: (
@@ -432,6 +511,7 @@ export function setToken(_token: string) {
 export function clearToken() {
   // no-op — Supabase owns sessions
 }
+
 
 
 

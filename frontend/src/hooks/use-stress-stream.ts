@@ -16,18 +16,10 @@ interface UseStressStreamReturn {
 
 const POLL_MS = 5000;
 
-// Placeholder features when the collector hasn't delivered a real vector.
-// The infer edge function zero-masks and clips per the training guards.
-const DEFAULT_FEATURES: Record<string, number> = {
-  hold_time_mean: 0, hold_time_std: 0, hold_time_median: 0,
-  flight_time_mean: 0, flight_time_std: 0, typing_speed_wpm: 45,
-  error_rate: 0.08, pause_frequency: 0, pause_duration_mean: 0,
-  burst_length_mean: 0, rhythm_entropy: 0, mouse_speed_mean: 180,
-  mouse_speed_std: 90, direction_change_rate: 1.5, click_count: 12,
-  rage_click_count: 1, scroll_velocity_std: 10, tab_switch_freq: 2,
-  switch_entropy: 0.8, session_fragmentation: 0, hour_of_day: 12,
-  day_of_week: 2, session_duration_min: 30,
-};
+// No placeholder features: the score is only produced from REAL feature
+// vectors sent by the collector (wsRef.send). Before the first real
+// vector arrives, the hook reports "collecting" and emits no data.
+let featuresRef: Record<string, number> | null = null;
 
 export function useStressStream(): UseStressStreamReturn {
   const [data, setData] = useState<StressResult | null>(null);
@@ -37,16 +29,21 @@ export function useStressStream(): UseStressStreamReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const pollTimer = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(false);
-  const featuresRef = useRef<Record<string, number>>(DEFAULT_FEATURES);
 
   const pollOnce = useCallback(async () => {
+    if (!featuresRef) {
+      if (isMounted.current && status !== "disconnected") {
+        setStatus("collecting" as ConnectionStatus);
+      }
+      return;
+    }
     const { data: session } = await supabase.auth.getSession();
     if (!session.session) {
       setStatus("disconnected");
       return;
     }
     try {
-      const d = await inferStress(featuresRef.current);
+      const d = await inferStress(featuresRef);
       const probs = d.probabilities ?? { NEUTRAL: 0.33, MILD: 0.33, STRESSED: 0.34 };
       const result: StressResult = {
         score: Number(d.score ?? 0),
@@ -61,10 +58,10 @@ export function useStressStream(): UseStressStreamReturn {
         feature_contributions: {},
         insights: [],
         timestamp: Date.now() / 1000,
-        typing_speed_wpm: Number(featuresRef.current.typing_speed_wpm ?? 0),
-        error_rate: Number(featuresRef.current.error_rate ?? 0),
-        click_count: Number(featuresRef.current.click_count ?? 0),
-        mouse_speed_mean: Number(featuresRef.current.mouse_speed_mean ?? 0),
+        typing_speed_wpm: Number(featuresRef.typing_speed_wpm ?? 0),
+        error_rate: Number(featuresRef.error_rate ?? 0),
+        click_count: Number(featuresRef.click_count ?? 0),
+        mouse_speed_mean: Number(featuresRef.mouse_speed_mean ?? 0),
         alert_state: (d.deviation_level ?? "OK") === "ELEVATED" ? "EARLY_WARNING" : "NORMAL",
         intervention: null,
         trend: "steady",
@@ -102,14 +99,14 @@ export function useStressStream(): UseStressStreamReturn {
     };
   }, [connect]);
 
-  // Compat shim: pages may call wsRef.current.send() — accept a feature
-  // payload to use for the next inference.
+  // Compat shim: pages call wsRef.current.send() with a REAL feature vector
+  // from the collector — used for the next inference.
   wsRef.current = {
     send: (raw: string) => {
       try {
         const msg = JSON.parse(raw);
         if (msg.type === "features" && msg.features) {
-          featuresRef.current = { ...DEFAULT_FEATURES, ...msg.features };
+          featuresRef = { ...msg.features };
           pollOnce();
         }
       } catch {

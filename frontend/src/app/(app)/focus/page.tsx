@@ -55,13 +55,17 @@ export default function FocusFlowPage() {
       const forecastRes = await api.getEnergyForecast();
       if (forecastRes.success) {
         const fc = forecastRes.forecast;
-        setForecast({
-          peak_hour: fc.peak_hour,
-          peak_energy: fc.peak_energy,
-          energy_curve: fc.energy_curve,
-          suggested_schedule: fc.suggested_schedule,
-          confidence: (["low", "medium", "high"].includes(fc.confidence) ? fc.confidence : "medium") as "low" | "medium" | "high",
-        });
+        if (fc) {
+          setForecast({
+            peak_hour: fc.peak_hour,
+            peak_energy: fc.peak_energy,
+            energy_curve: fc.energy_curve,
+            suggested_schedule: fc.suggested_schedule,
+            confidence: (["low", "medium", "high"].includes(fc.confidence) ? fc.confidence : "low") as "low" | "medium" | "high",
+          });
+        } else {
+          setForecast(null);
+        }
       }
     } catch (err) {
       setError("Failed to load focus data");
@@ -94,29 +98,25 @@ export default function FocusFlowPage() {
     { key: "forecast" as const, label: "Energy Forecast", icon: TrendingUp },
   ];
 
-  // Calculate derived values
-  const flowScore = focusState?.flow_score || 72;
-  const deepWorkMinutes = focusState?.deep_work_minutes || 90;
-  const focusSessions = Math.floor(deepWorkMinutes / 45) || 8;
-  const avgDuration = focusState?.deep_work_minutes ? Math.round(focusState.deep_work_minutes / Math.max(focusSessions, 1)) : 42;
-  const isInFlow = focusState?.is_in_flow || flowScore > 70;
+  // Derived values — REAL only; 0/empty when no data (no fabricated defaults)
+  const flowScore = focusState?.flow_score ?? 0;
+  const deepWorkMinutes = focusState?.deep_work_minutes ?? 0;
+  const focusSessions = focusState?.deep_work_minutes ? Math.floor(focusState.deep_work_minutes / 45) : 0;
+  const avgDuration = focusState?.deep_work_minutes && focusSessions > 0
+    ? Math.round(focusState.deep_work_minutes / focusSessions) : 0;
+  const isInFlow = focusState?.is_in_flow ?? false;
 
   // Shield metrics
-  const contextSwitches = shieldState?.context_switches || 12;
-  const tabHopping = shieldState?.tab_hopping || 28;
-  const mouseAgitation = shieldState?.mouse_agitation || "Low";
+  const contextSwitches = shieldState?.context_switches ?? 0;
+  const tabHopping = shieldState?.tab_hopping ?? 0;
+  const mouseAgitation = shieldState?.mouse_agitation ?? "unknown";
 
-  // Forecast data
-  const peakHour = forecast?.peak_hour || "10 AM";
-  const peakEnergy = forecast?.peak_energy || 89;
-  const energyCurve = forecast?.energy_curve || [];
-  const suggestedSchedule = forecast?.suggested_schedule || [
-    { time: "9-10 AM", activity: "Light tasks, email catch-up", energy: "Warming up", color: "#d97706" },
-    { time: "10 AM-12 PM", activity: "Deep work — your peak window", energy: "Peak energy", color: "#22c55e" },
-    { time: "12-1 PM", activity: "Lunch break, step outside", energy: "Natural dip", color: "#857F75" },
-    { time: "2-4 PM", activity: "Collaborative work, meetings", energy: "Second wind", color: "#5b4fc4" },
-    { time: "4-6 PM", activity: "Wrap up, plan tomorrow", energy: "Gradual decline", color: "#d97706" },
-  ];
+  // Forecast data (null = insufficient data, honest)
+  const hasForecast = Boolean(forecast?.energy_curve?.length);
+  const peakHour = forecast?.peak_hour ?? "—";
+  const peakEnergy = forecast?.peak_energy ?? 0;
+  const energyCurve = forecast?.energy_curve ?? [];
+  const suggestedSchedule = forecast?.suggested_schedule ?? [];
 
   return (
     <div className="flex-1 flex flex-col bg-[#0a0a0f] min-h-screen overflow-y-auto">
@@ -127,6 +127,11 @@ export default function FocusFlowPage() {
             <Focus className="w-5 h-5 text-[#5b4fc4]" />
             <h1 className="text-xl font-light text-[#F2EFE9]">Focus & Flow</h1>
           </div>
+          {(focusState && !focusState.has_data) && (
+            <span className="text-xs text-[#857F75] border border-[#1c1c2e] rounded-full px-3 py-1">
+              Collecting data — metrics appear after your first sessions
+            </span>
+          )}
           <motion.button
             onClick={toggleFocusMode}
             disabled={isLoading}

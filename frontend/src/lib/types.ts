@@ -183,6 +183,7 @@ export interface FocusState {
   context_switches: number;
   is_in_flow: boolean;
   suggestion?: string;
+  has_data: boolean;
 }
 
 export interface EnergyForecast {
