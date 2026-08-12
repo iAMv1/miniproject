@@ -88,7 +88,7 @@ async def get_current_user(
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv(
-    "GOOGLE_REDIRECT_URI", "http://localhost:3000/api/auth/google/callback"
+    "GOOGLE_REDIRECT_URI", "http://localhost:5000/api/v1/auth/google/callback"
 )
 FRONTEND_CALLBACK_URL = os.getenv(
     "FRONTEND_CALLBACK_URL", "http://localhost:3000/auth/callback"
@@ -132,9 +132,19 @@ async def google_oauth_start():
 @router.get("/auth/google/callback")
 async def google_callback(
     request: Request,
-    code: str = Query(...),
-    state: str = Query(...),
+    code: Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
 ):
+    if error:
+        callback_error_url = f"{FRONTEND_CALLBACK_URL}?error={urllib.parse.quote(error)}"
+        response = RedirectResponse(url=callback_error_url, status_code=302)
+        response.delete_cookie("oauth_state")
+        return response
+
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing OAuth authorization response")
+
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         raise HTTPException(
             status_code=500,
@@ -155,7 +165,7 @@ async def google_callback(
         "grant_type": "authorization_code",
     }
 
-    token_resp = requests.post(token_url, data=token_data)
+    token_resp = requests.post(token_url, data=token_data, timeout=10)
     if token_resp.status_code != 200:
         raise HTTPException(
             status_code=400,
@@ -168,6 +178,7 @@ async def google_callback(
     userinfo_resp = requests.get(
         "https://www.googleapis.com/oauth2/v2/userinfo",
         headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10,
     )
     if userinfo_resp.status_code != 200:
         raise HTTPException(

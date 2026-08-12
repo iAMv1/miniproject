@@ -20,8 +20,7 @@ This project is set up to deploy:
      - `SUPABASE_SERVICE_KEY`
      - `OPENAI_API_KEY` or `GEMINI_API_KEY`
      - `LOG_LEVEL`
-     - `GOOGLE_REDIRECT_URI`
-     - `FRONTEND_CALLBACK_URL`
+     - For Google sign-in: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, and `FRONTEND_CALLBACK_URL`
 5. Verify health endpoint:
    - `https://<railway-backend-domain>/api/v1/health`
 
@@ -35,9 +34,7 @@ This project is set up to deploy:
      - `NEXT_PUBLIC_API_URL=https://<railway-backend-domain>/api/v1`
      - `NEXT_PUBLIC_WS_URL=wss://<railway-backend-domain>/api/v1/ws/stress`
        - This path matches the current frontend stress stream hook. If you change backend WebSocket routing, update this value accordingly.
-   - Optional:
-     - `GOOGLE_CLIENT_ID`
-     - `GOOGLE_CLIENT_SECRET`
+
 4. Deploy the project.
 
 ## 3) Cross-service configuration
@@ -46,10 +43,11 @@ After both deployments are live:
 
 1. Update Railway `ALLOWED_ORIGINS` to your Vercel URL, for example:
    - `ALLOWED_ORIGINS=https://<vercel-frontend-domain>`
-2. If Google OAuth is enabled, set Railway values:
-   - `GOOGLE_REDIRECT_URI=https://<vercel-frontend-domain>/api/auth/google/callback`
+2. If Google sign-in is enabled, set Railway values:
+   - `GOOGLE_REDIRECT_URI=https://<railway-backend-domain>/api/v1/auth/google/callback`
    - `FRONTEND_CALLBACK_URL=https://<vercel-frontend-domain>/auth/callback`
-3. Redeploy services if environment variables changed.
+   - Register that exact `GOOGLE_REDIRECT_URI` under **Authorized redirect URIs** for the Google OAuth client. Do not register the frontend callback there; the backend must receive the state cookie and validate it.
+3. Redeploy Railway after backend environment variables change, and redeploy Vercel after `NEXT_PUBLIC_*` variables change.
 
 ## 4) Optional persistence
 

@@ -18,3 +18,10 @@ __pycache__/
 backend/app/ml/artifacts/history.db
 backend/app/ml/artifacts/users.db
 
+# Frontend build and local dependency artifacts
+frontend/node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Local runtime data created during integration tests
+telemetry.db

@@ -3,8 +3,8 @@ import { ClientProviders } from "./client-providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MindPulse — Stress Detection",
-  description: "Privacy-first behavioral stress detection from typing and mouse patterns",
+  title: "MindPulse — Behavioral Awareness",
+  description: "Privacy-first behavioral awareness with explicit signal-quality context and user-controlled data.",
   icons: {
     icon: "/favicon.ico",
   },
