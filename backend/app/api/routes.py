@@ -274,21 +274,30 @@ async def model_metrics(current_user: dict = Depends(get_current_user)):
         from sklearn.metrics import confusion_matrix as cm_func
 
         model, stats = load_model(allow_download=False, allow_train_fallback=False)
-        normalizer = DualNormalizer(stats)
-        hour_idx = FEATURE_NAMES.index("hour_of_day")
+        n_in = int(getattr(model, "n_features_in_", 23))
 
         X_raw, y_true, _ = generate_synthetic_dataset(n_samples=600)
-        X_norm = np.array(
-            [
-                normalizer.transform(
-                    X_raw[i], hour=int(X_raw[i, hour_idx]), baseline=None
-                )
-                for i in range(len(X_raw))
-            ],
-            dtype=np.float32,
-        )
+        # shape-aware: raw-23 model takes raw features; 46-dim model takes
+        # DualNormalizer output (global + user z-scores)
+        if n_in == 23:
+            X_pred = np.asarray(X_raw, dtype=np.float32)
+        else:
+            from app.ml.model import DualNormalizer
+            normalizer = DualNormalizer(stats)
+            hour_idx = FEATURE_NAMES.index("hour_of_day")
+            X_pred = np.array(
+                [
+                    normalizer.transform(
+                        X_raw[i], hour=int(X_raw[i, hour_idx]), baseline=None
+                    )
+                    for i in range(len(X_raw))
+                ],
+                dtype=np.float32,
+            )
 
-        y_pred = model.predict(X_norm)
+        y_pred = model.predict(X_pred)
+        if np.ndim(y_pred) == 2:
+            y_pred = y_pred.argmax(axis=1)
         matrix = cm_func(y_true, y_pred, labels=[0, 1, 2])
         confusion_matrix = matrix.tolist()
     except Exception as e:
