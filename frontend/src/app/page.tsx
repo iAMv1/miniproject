@@ -152,7 +152,7 @@ export default function LivingLanding() {
                 animate={{ opacity: 1 }}
                 transition={{ delay: 2.5 }}
               >
-                No content read. No surveillance. Just timing.{" "}
+                No typed content is persisted. Behavioral timing, explained. {" "}
                 <span className="text-[#5b4fc4] cursor-default" title="Psst... try the Konami code (↑↑↓↓←→←→BA)">✨</span>
               </motion.p>
 
@@ -329,7 +329,7 @@ export default function LivingLanding() {
                 </div>
                 <h3 className="text-2xl font-light text-[#F2EFE9] mb-4">&ldquo;A stretch break might help&rdquo;</h3>
                 <p className="text-[#857F75] leading-relaxed mb-6">
-                  Never &ldquo;you&apos;re stressed.&rdquo; Instead, a gentle suggestion timed to your energy dip — with a 2-minute guided stretch that actually works for you.
+                  Never &ldquo;you&apos;re stressed.&rdquo; Instead, a gentle suggestion when your behavioral rhythm changes — and you decide whether to act.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-6">
                   {["Energy dip", "Rising errors", "Click speed change"].map((tag) => (
@@ -458,7 +458,7 @@ export default function LivingLanding() {
               <span className="text-[#5b4fc4]">23</span> signals.<br />
               Zero content.
             </h2>
-            <p className="text-sm text-[#857F75] mt-4">Every 5 seconds, MindPulse reads your behavioral rhythm — never what you type.</p>
+            <p className="text-sm text-[#857F75] mt-4">MindPulse summarizes behavioral timing in short activity windows and never persists typed content.</p>
           </motion.div>
 
           {/* Feature grid with SVG icons */}
@@ -511,7 +511,7 @@ export default function LivingLanding() {
             viewport={{ once: true }}
             transition={{ delay: 0.8 }}
           >
-            23 features × 5-second windows × your unique baseline = accurate rhythm detection
+            23 behavioral features × your unique baseline = a more contextual rhythm signal
           </motion.p>
         </div>
       </section>
@@ -814,7 +814,7 @@ export default function LivingLanding() {
           </h2>
 
           <p className="text-[#857F75] max-w-md mx-auto mb-12">
-            MindPulse learns your unique rhythm. After calibration, it can sense energy dips 2-4 weeks before burnout.
+            MindPulse learns your unique rhythm. After calibration, it can highlight behavioral changes worth checking in on.
           </p>
 
           <motion.button
@@ -833,7 +833,7 @@ export default function LivingLanding() {
             <span className="w-1 h-1 rounded-full bg-[#857F75]/20" />
             <span>Open source</span>
             <span className="w-1 h-1 rounded-full bg-[#857F75]/20" />
-            <span>Your data never leaves your machine</span>
+            <span>You control your stored behavioral data</span>
           </div>
 
           <motion.div className="absolute bottom-12 left-1/2 -translate-x-1/2 text-[10px] text-[#857F75]/40" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: 1 }}>
