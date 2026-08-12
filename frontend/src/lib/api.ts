@@ -23,11 +23,9 @@ type ChatToolParams = Record<string, unknown>;
 type StreamFeatures = Record<string, number>;
 
 export function getToken(): string | null {
-  // Legacy token store — Supabase owns sessions now; return the access token
-  // for any code that still reads it.
-  if (typeof window === "undefined") return null;
-  const { data } = supabase.auth.getSession();
-  return data?.session?.access_token ?? null;
+  // Supabase owns sessions; the access token is only reachable async.
+  // Return null synchronously — nothing should depend on this anymore.
+  return null;
 }
 
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -43,16 +41,18 @@ async function userId(): Promise<string | null> {
 
 function mapRow(r: Record<string, unknown>): HistoryPoint {
   return {
-    timestamp: new Date(r.created_at).getTime() / 1000,
+    timestamp: new Date(String(r.created_at)).getTime() / 1000,
     score: Number(r.score ?? 0),
-    level: r.level ?? "UNKNOWN",
-    deviation_level: r.deviation_level ?? "OK",
+    level: String(r.level ?? "UNKNOWN"),
+    deviation_level: (String(r.deviation_level ?? "OK") as "OK" | "ELEVATED"),
     stress_probability: Number(r.stress_probability ?? 0),
     confidence: Number(r.stress_probability ?? 0),
+    insights: [],
     typing_speed_wpm: Number(r.typing_speed_wpm ?? 0),
     error_rate: Number(r.error_rate ?? 0),
     click_count: Number(r.click_count ?? 0),
-  } as HistoryPoint;
+    mouse_speed_mean: Number(r.mouse_speed_mean ?? 0),
+  };
 }
 
 export const api = {
@@ -77,7 +77,7 @@ export const api = {
   }),
 
   inference: async (features: FeatureVector, _userId: string = "default"): Promise<StressResult> => {
-    const d = await inferStress(features as Record<string, number>);
+    const d = await inferStress(features as unknown as Record<string, number>);
     const probs = d.probabilities ?? { NEUTRAL: 0.33, MILD: 0.33, STRESSED: 0.34 };
     return {
       score: Number(d.score ?? 0),
@@ -127,7 +127,7 @@ export const api = {
       high_stress_percentage: total
         ? (rows.filter((r) => (r.deviation_level ?? "OK") === "ELEVATED").length / total) * 100
         : 0,
-    } as UserStats;
+    } as unknown as UserStats;
   },
 
   calibration: async (_userId: string = "default"): Promise<CalibrationStatus> => {
@@ -143,7 +143,7 @@ export const api = {
       samples_per_hour: {},
       completion_pct: Math.min(100, (rows.length / 20) * 100),
       calibration_quality: data?.threshold ? 0.5 : 0.0,
-    } as CalibrationStatus;
+    } as unknown as CalibrationStatus;
   },
 
   feedback: async (predicted: string, actual: string, _userId: string = "default") => {
@@ -227,15 +227,15 @@ export const api = {
     return ((data ?? []) as { id: string; action: string; intervention_type: string; notes: string; created_at: string }[]).map((r) => ({
       id: r.id, action: r.action, intervention_type: r.intervention_type ?? "",
       notes: r.notes ?? "", created_at: r.created_at,
-    })) as InterventionEvent[];
+    })) as unknown as InterventionEvent[];
   },
 
-  checkWindDown: async () => ({ wind_down: null }),
+  checkWindDown: async (_userId?: string) => ({ wind_down: null }),
   scheduleBreak: async (_u: string, breakTime: string, interventionType: string = "breathing_reset") =>
     ({ status: "ok", break: { id: String(Date.now()), scheduled_for: breakTime, intervention_type: interventionType, status: "scheduled" } }),
-  getScheduledBreaks: async () => ({ breaks: [] }),
-  cancelBreak: async () => ({ status: "ok", message: "No active break" }),
-  checkDueBreaks: async () => ({ due_break: null }),
+  getScheduledBreaks: async (_userId?: string) => ({ breaks: [] }),
+  cancelBreak: async (_userId?: string, _breakId?: string) => ({ status: "ok", message: "No active break" }),
+  checkDueBreaks: async (_userId?: string) => ({ due_break: null }),
 
   // ── Chat (storage via tables, answers via edge function) ──
   createChatSession: async (title?: string) => {
@@ -341,7 +341,7 @@ export const api = {
   getWeeklyReflection: async () => {
     const c = await api.getWellnessCheckins(7);
     const energyMap: Record<string, number> = { low: 1, medium: 2, high: 3 };
-    const list = c.checkins as { id: string; action: string; intervention_type: string; notes: string; created_at: string }[];
+    const list = c.checkins as { id: string; energy_level: string; sleep_quality: string; check_date: string }[];
     const avgEnergy = list.length ? list.reduce((a, x) => a + (energyMap[x.energy_level] ?? 0), 0) / list.length : null;
     const insights = await api.getWellnessJournal(5);
     return {
@@ -432,5 +432,9 @@ export function setToken(_token: string) {
 export function clearToken() {
   // no-op — Supabase owns sessions
 }
+
+
+
+
 
 

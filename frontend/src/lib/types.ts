@@ -66,6 +66,9 @@ export interface HistoryPoint {
   score: number;
   level: string;
   insights: string[];
+  deviation_level?: "OK" | "ELEVATED";
+  stress_probability?: number;
+  confidence?: number;
   typing_speed_wpm?: number;
   rage_click_count?: number;
   error_rate?: number;
