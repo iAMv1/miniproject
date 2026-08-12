@@ -72,6 +72,23 @@ export function useStressStream(): UseStressStreamReturn {
       setError(null);
       setData(result);
       setHistory((prev) => [...prev.slice(-120), result]);
+
+      // Persist to stress_history — powers History page, stats, forecast,
+      // calibration. RLS scopes to this user.
+      try {
+        await supabase.from("stress_history").insert({
+          user_id: session.session.user.id,
+          score: result.score,
+          level: result.level,
+          deviation_level: result.deviation_level ?? "OK",
+          stress_probability: result.stress_probability ?? 0,
+          typing_speed_wpm: result.typing_speed_wpm ?? 0,
+          error_rate: result.error_rate ?? 0,
+          click_count: result.click_count ?? 0,
+        });
+      } catch (e2) {
+        console.error("[MindPulse] persist failed:", e2);
+      }
     } catch (e) {
       if (!isMounted.current) return;
       setStatus("error");
@@ -106,7 +123,15 @@ export function useStressStream(): UseStressStreamReturn {
       try {
         const msg = JSON.parse(raw);
         if (msg.type === "features" && msg.features) {
-          featuresRef = { ...msg.features };
+          const f = { ...msg.features };
+          // Scale fix: collector emits hold/flight in SECONDS, the model was
+          // trained on MILLISECONDS. Convert to the trained distribution.
+          for (const k of ["hold_time_mean", "hold_time_std", "hold_time_median",
+                           "flight_time_mean", "flight_time_std",
+                           "pause_duration_mean"]) {
+            if (typeof f[k] === "number") f[k] = f[k] * 1000;
+          }
+          featuresRef = f;
           pollOnce();
         }
       } catch {
