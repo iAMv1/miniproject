@@ -22,6 +22,10 @@ interface FeatureAccumulator {
   lastScrollY: number;
   lastScrollTime: number;
   windowStart: number;
+  tabSwitches: number;
+  hiddenStart: number | null;
+  hiddenMs: number;
+  hiddenGaps: number[];
 }
 
 function createAccumulator(): FeatureAccumulator {
@@ -41,6 +45,10 @@ function createAccumulator(): FeatureAccumulator {
     lastScrollY: 0,
     lastScrollTime: 0,
     windowStart: Date.now(),
+    tabSwitches: 0,
+    hiddenStart: null,
+    hiddenMs: 0,
+    hiddenGaps: [],
   };
 }
 
@@ -98,6 +106,10 @@ function computeFeatures(acc: FeatureAccumulator) {
   const hourOfDay = now.getHours() + now.getMinutes() / 60;
   const dayOfWeek = now.getDay();
 
+  // Real session fragmentation: time away from this tab, tab switches,
+  // and gap-duration entropy — measured, never fabricated.
+  const hiddenShare = Math.min(1, acc.hiddenMs / 1000 / windowSec);
+
   return {
     hold_time_mean: round(holdMean, 4),
     hold_time_std: round(holdStd, 4),
@@ -116,9 +128,9 @@ function computeFeatures(acc: FeatureAccumulator) {
     click_count: totalClicks,
     rage_click_count: rageClicks,
     scroll_velocity_std: round(scrollStd, 2),
-    tab_switch_freq: 0,
-    switch_entropy: 0,
-    session_fragmentation: 0,
+    tab_switch_freq: round(acc.tabSwitches / Math.max(1, windowSec / 60), 2),
+    switch_entropy: round(computeShannonEntropy(acc.hiddenGaps), 4),
+    session_fragmentation: round(hiddenShare, 4),
     hour_of_day: round(hourOfDay, 2),
     day_of_week: dayOfWeek,
     session_duration_min: round(windowSec / 60, 2),
@@ -190,11 +202,23 @@ export function useFeatureCollector(
   const flush = useCallback(() => {
     if (paused) return;
     const acc = accRef.current;
-    if (acc.keyPressCount === 0 && acc.clickTimestamps.length === 0 && acc.mouseSpeeds.length === 0) return;
+    // A window needs real measured behavior: input activity OR a measured
+    // tab switch / away-gap. Pure silence is never presented as a signal.
+    if (
+      acc.keyPressCount === 0 &&
+      acc.clickTimestamps.length === 0 &&
+      acc.mouseSpeeds.length === 0 &&
+      acc.tabSwitches === 0
+    ) return;
 
     const features = computeFeatures(acc);
     if (wsSend) {
-      wsSend(JSON.stringify({ type: "features", features, user_id: userId }));
+      wsSend(JSON.stringify({
+        type: "features",
+        features,
+        tab_switch_count: acc.tabSwitches,
+        user_id: userId,
+      }));
     }
     accRef.current = createAccumulator();
   }, [paused, wsSend, userId]);
@@ -206,6 +230,40 @@ export function useFeatureCollector(
     }
     isMountedRef.current = true;
     const flushTimer = setInterval(flush, windowMs);
+
+    const markHidden = () => {
+      const acc = accRef.current;
+      if (acc.hiddenStart === null) {
+        acc.hiddenStart = performance.now();
+        acc.tabSwitches++;
+      }
+    };
+    const markVisible = () => {
+      const acc = accRef.current;
+      if (acc.hiddenStart !== null) {
+        const gap = (performance.now() - acc.hiddenStart) / 1000;
+        acc.hiddenMs += gap;
+        acc.hiddenGaps.push(gap);
+        acc.hiddenStart = null;
+      }
+    };
+    const handleVisibility = () => {
+      if (!isMountedRef.current) return;
+      if (document.hidden) markHidden();
+      else markVisible();
+    };
+    const handleBlur = () => {
+      if (!isMountedRef.current) return;
+      markHidden();
+    };
+    const handleFocus = () => {
+      if (!isMountedRef.current) return;
+      markVisible();
+    };
+    const handlePageHide = () => {
+      markHidden();
+      flush();
+    };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isMountedRef.current) return;
@@ -288,6 +346,10 @@ export function useFeatureCollector(
       acc.lastScrollTime = now;
     };
 
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("pagehide", handlePageHide);
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
@@ -297,6 +359,10 @@ export function useFeatureCollector(
     return () => {
       isMountedRef.current = false;
       clearInterval(flushTimer);
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("mousemove", handleMouseMove);

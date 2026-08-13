@@ -28,6 +28,8 @@ export function useStressStream(): UseStressStreamReturn {
   const pollTimer = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(false);
   const featuresRef = useRef<Record<string, number> | null>(null);
+  const featuresDirtyRef = useRef(false);
+  const tabSwitchCountRef = useRef(0);
 
   const pollOnce = useCallback(async () => {
     const features = featuresRef.current;
@@ -35,6 +37,7 @@ export function useStressStream(): UseStressStreamReturn {
       if (isMounted.current) setStatus("collecting" as ConnectionStatus);
       return;
     }
+    if (!featuresDirtyRef.current) return;
     const { data: session } = await supabase.auth.getSession();
     if (!session.session) {
       setStatus("disconnected");
@@ -73,6 +76,7 @@ export function useStressStream(): UseStressStreamReturn {
       setError(null);
       setData(result);
       setHistory((prev) => [...prev.slice(-120), result]);
+      featuresDirtyRef.current = false;
 
       // Persist to stress_history — powers History page, stats, forecast,
       // calibration. RLS scopes to this user.
@@ -89,6 +93,43 @@ export function useStressStream(): UseStressStreamReturn {
         });
       } catch (e2) {
         console.error("[MindPulse] persist failed:", e2);
+      }
+
+      // Focus snapshot — powers the Focus page with the same real window.
+      try {
+        await supabase.from("focus_snapshots").insert({
+          user_id: session.session.user.id,
+          focus_score: Math.max(0, Math.min(100, 100 - result.score)),
+          context_switches: tabSwitchCountRef.current,
+          tab_hopping: tabSwitchCountRef.current,
+        });
+      } catch (e3) {
+        console.error("[MindPulse] focus persist failed:", e3);
+      }
+
+      // Personal baseline — mean/std/threshold from real history, upserted
+      // each window. This is what calibration() reads.
+      try {
+        const { data: rows } = await supabase
+          .from("stress_history")
+          .select("score")
+          .eq("user_id", session.session.user.id)
+          .order("created_at", { ascending: false })
+          .limit(20);
+        if (rows && rows.length >= 5) {
+          const scores = rows.map((r) => Number(r.score ?? 0));
+          const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const std = Math.sqrt(scores.reduce((s, v) => s + (v - mean) ** 2, 0) / scores.length);
+          await supabase.from("user_baselines").upsert({
+            user_id: session.session.user.id,
+            mean: JSON.stringify([mean]),
+            std: JSON.stringify([std]),
+            threshold: Math.round((mean + 0.5 * std) * 10) / 10,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      } catch (e4) {
+        console.error("[MindPulse] baseline persist failed:", e4);
       }
     } catch (e) {
       if (!isMounted.current) return;
@@ -133,6 +174,8 @@ export function useStressStream(): UseStressStreamReturn {
             if (typeof f[k] === "number") f[k] = f[k] * 1000;
           }
           featuresRef.current = f;
+          tabSwitchCountRef.current = Number(msg.tab_switch_count ?? 0);
+          featuresDirtyRef.current = true;
           pollOnce();
         }
       } catch {
