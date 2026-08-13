@@ -30,3 +30,5 @@ supabase/.temp/
 frontend/.env.local
 frontend/.env*.local
 
+backend/desktop_agent/config.json
+

@@ -16,6 +16,12 @@ function json(data: unknown, status = 200): Response {
 const GEMINI_KEY = Deno.env.get("GEMINI_API_KEY") ?? "";
 const MODEL = "gemini-flash-latest";
 
+// ── Observability: request log line (platform logs dashboard) ──
+function logReq(req: Request, status: number, ms: number) {
+  const ip = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+  console.log(`chat ${req.method} status=${status} ${Math.round(ms)}ms ip=${ip}`);
+}
+
 // ── Authorization: verify JWT signature + require role=authenticated.
 //    (verify_jwt alone passes the anon key — it is a valid signed JWT.)
 function b64urlToBytes(s: string): Uint8Array {
@@ -56,6 +62,7 @@ concrete micro-breaks, and never diagnose or give medical advice. If the user
 mentions severe distress, gently suggest professional support.`;
 
 Deno.serve(async (req) => {
+  const t0 = performance.now();
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -71,14 +78,17 @@ Deno.serve(async (req) => {
     return new Response("method not allowed", { status: 405, headers: CORS });
   }
   if (!(await isAuthenticatedUser(req))) {
+    logReq(req, 401, performance.now() - t0);
     return json({ error: "unauthorized" }, 401);
   }
   if (!GEMINI_KEY) {
+    logReq(req, 503, performance.now() - t0);
     return json({ error: "GEMINI_API_KEY not configured" }, 503);
   }
   try {
     const { message, history = [] } = await req.json();
     if (!message) {
+      logReq(req, 400, performance.now() - t0);
       return json({ error: "message required" }, 400);
     }
     const contents = [
@@ -103,8 +113,10 @@ Deno.serve(async (req) => {
     }
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    logReq(req, 200, performance.now() - t0);
     return json({ reply: text });
   } catch (e) {
+    logReq(req, 500, performance.now() - t0);
     return json({ error: String(e) }, 500);
   }
 });

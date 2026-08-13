@@ -108,7 +108,7 @@ const INITIAL_STATE = {
 
 export const useStressStore = create<StressStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       ...INITIAL_STATE,
       
       updateScore: (data) =>

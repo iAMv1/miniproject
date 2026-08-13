@@ -8,7 +8,7 @@
     "start": "next start",
     "start:all": "concurrently \"npm run start:backend\" \"npm run start\"",
     "start:backend": "cd ../backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 5000",
-    "test": "cd ../backend && python -m pytest; status=$?; if [ $status -eq 5 ]; then echo \"No unit tests collected\"; exit 0; fi; exit $status",
+    "test": "vitest run",
     "test:integration": "if [ -f ../backend/test_endpoints.py ]; then python ../backend/test_endpoints.py; else echo \"No integration test script found\"; fi",
     "test:live": "if [ -f ../backend/test_live.py ]; then python ../backend/test_live.py; else echo \"No e2e/live test script found\"; fi",
     "lint": "next lint"
@@ -20,7 +20,6 @@
     "framer-motion": "^12.38.0",
     "lucide-react": "^0.460.0",
     "next": "^15.0.0",
-    "next-auth": "^5.0.0-beta.31",
     "onnxruntime-web": "^1.24.3",
     "partysocket": "^1.1.16",
     "react": "^19.0.0",
@@ -40,6 +39,7 @@
     "eslint-config-next": "^15.5.14",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.10"
   }
 }

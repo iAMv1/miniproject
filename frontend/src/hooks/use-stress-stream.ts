@@ -102,6 +102,7 @@ export function useStressStream(): UseStressStreamReturn {
           focus_score: Math.max(0, Math.min(100, 100 - result.score)),
           context_switches: tabSwitchCountRef.current,
           tab_hopping: tabSwitchCountRef.current,
+          deep_work_minutes: result.score < 35 ? Number(features.session_duration_min ?? 0) : 0,
         });
       } catch (e3) {
         console.error("[MindPulse] focus persist failed:", e3);
@@ -165,15 +166,7 @@ export function useStressStream(): UseStressStreamReturn {
       try {
         const msg = JSON.parse(raw);
         if (msg.type === "features" && msg.features) {
-          const f = { ...msg.features };
-          // Scale fix: collector emits hold/flight in SECONDS, the model was
-          // trained on MILLISECONDS. Convert to the trained distribution.
-          for (const k of ["hold_time_mean", "hold_time_std", "hold_time_median",
-                           "flight_time_mean", "flight_time_std",
-                           "pause_duration_mean"]) {
-            if (typeof f[k] === "number") f[k] = f[k] * 1000;
-          }
-          featuresRef.current = f;
+          featuresRef.current = { ...msg.features };
           tabSwitchCountRef.current = Number(msg.tab_switch_count ?? 0);
           featuresDirtyRef.current = true;
           pollOnce();

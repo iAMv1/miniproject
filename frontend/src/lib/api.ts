@@ -28,6 +28,62 @@ export function getToken(): string | null {
   return null;
 }
 
+type CheckinRow = { id: string; energy_level: string; sleep_quality: string; check_date: string };
+
+/** Derive honest pattern insights from real check-ins (no fabricated data). */
+function deriveWellnessInsights(list: CheckinRow[]): { id: string; insight_type: string; content: string; generated_at: string }[] {
+  const out: { id: string; insight_type: string; content: string; generated_at: string }[] = [];
+  const energyMap: Record<string, number> = { low: 1, medium: 2, high: 3 };
+  const today = new Date().toISOString().slice(0, 10);
+  if (list.length === 0) {
+    return [{
+      id: "derive-nudge", insight_type: "milestone",
+      content: "Log your first daily check-in — patterns start appearing after a few days.",
+      generated_at: new Date().toISOString(),
+    }];
+  }
+  if (list.length < 3) {
+    out.push({
+      id: "derive-start", insight_type: "milestone",
+      content: `You've logged ${list.length} check-in${list.length === 1 ? "" : "s"} — keep it daily and patterns will emerge.`,
+      generated_at: new Date().toISOString(),
+    });
+    return out;
+  }
+  const recent = list.slice(-3).map((c) => energyMap[c.energy_level] ?? 0);
+  const before = list.slice(-6, -3).map((c) => energyMap[c.energy_level] ?? 0);
+  const avg = (a: number[]) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
+  const recentAvg = avg(recent);
+  const beforeAvg = avg(before);
+  if (recentAvg > beforeAvg + 0.4) {
+    out.push({ id: "derive-trend-up", insight_type: "pattern", content: "Your energy has been trending upward over the last few days.", generated_at: new Date().toISOString() });
+  } else if (beforeAvg > recentAvg + 0.4) {
+    out.push({ id: "derive-trend-down", insight_type: "pattern", content: "Your energy has dipped recently — consider earlier nights or a lighter load.", generated_at: new Date().toISOString() });
+  } else {
+    out.push({ id: "derive-trend-stable", insight_type: "pattern", content: "Your energy level has been stable across recent check-ins.", generated_at: new Date().toISOString() });
+  }
+  const goodSleep = list.filter((c) => ["good", "great"].includes(c.sleep_quality));
+  const poorSleep = list.filter((c) => ["poor", "fair"].includes(c.sleep_quality));
+  if (goodSleep.length >= 2 && poorSleep.length >= 2) {
+    const gAvg = avg(goodSleep.map((c) => energyMap[c.energy_level] ?? 0));
+    const pAvg = avg(poorSleep.map((c) => energyMap[c.energy_level] ?? 0));
+    if (gAvg > pAvg + 0.4) {
+      out.push({ id: "derive-sleep", insight_type: "pattern", content: "Days after good sleep run measurably higher-energy than days after poor sleep.", generated_at: new Date().toISOString() });
+    }
+  }
+  const lowDays = list.filter((c) => c.energy_level === "low").length;
+  if (lowDays >= Math.max(2, Math.floor(list.length / 2))) {
+    out.push({ id: "derive-low", insight_type: "suggestion", content: "Half or more of your recent check-ins were low-energy days — a longer recovery window may help.", generated_at: new Date().toISOString() });
+  }
+  if (list.length >= 7) {
+    out.push({ id: "derive-streak", insight_type: "milestone", content: `7+ day check-in streak — your journal now covers a full week.`, generated_at: new Date().toISOString() });
+  }
+  if (out.length === 1 && list.length >= 3) {
+    out.push({ id: "derive-note", insight_type: "suggestion", content: `Latest check-in (${today}): ${list[list.length - 1].energy_level} energy, ${list[list.length - 1].sleep_quality} sleep.`, generated_at: new Date().toISOString() });
+  }
+  return out;
+}
+
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   // Supabase tables don't take arbitrary REST paths; methods below are
   // explicit. Kept as a defensive throw for any missed caller.
@@ -165,6 +221,19 @@ export const api = {
     return { status: "ok", message: "Session data cleared" };
   },
 
+  pruneStressHistory: async (olderThanDays = 90) => {
+    const uid = await userId();
+    if (!uid) return { success: true, pruned: 0 };
+    const cutoff = new Date(Date.now() - olderThanDays * 86400e3).toISOString();
+    const { error, count } = await supabase
+      .from("stress_history")
+      .delete({ count: "exact" })
+      .eq("user_id", uid)
+      .lt("created_at", cutoff);
+    if (error) throw error;
+    return { success: true, pruned: count ?? 0 };
+  },
+
   exportMyData: async () => {
     const uid = await userId();
     const out: Record<string, unknown[]> = {};
@@ -285,7 +354,7 @@ export const api = {
     return { status: "ok", message: "Break cancelled" };
   },
 
-  checkDueBreaks: async (_userId?: string) => ({ due_break: null }),
+  checkDueBreaks: async () => ({ due_break: null }),
 
   // ── Chat (storage via tables, answers via edge function) ──
   createChatSession: async (title?: string) => {
@@ -386,7 +455,14 @@ export const api = {
     const { data } = uid
       ? await supabase.from("wellness_insights").select("*").eq("user_id", uid).order("generated_at", { ascending: false }).limit(limit || 10)
       : { data: null };
-    return { success: true, insights: data ?? [] };
+    const stored = (data ?? []) as { id: string; insight_type: string; content: string; generated_at: string }[];
+    if (stored.length === 0) {
+      // No stored insights yet — derive honest patterns from real check-ins.
+      const c = await api.getWellnessCheckins(30);
+      const list = (c.checkins as { id: string; energy_level: string; sleep_quality: string; check_date: string }[]).slice().reverse();
+      return { success: true, insights: deriveWellnessInsights(list).slice(0, limit || 10), derived: true };
+    }
+    return { success: true, insights: stored, derived: false };
   },
   getWeeklyReflection: async () => {
     const c = await api.getWellnessCheckins(7);
@@ -504,7 +580,7 @@ export const api = {
   },
 };
 
-export function setToken(_token: string) {
+export function setToken() {
   // no-op — Supabase owns sessions
 }
 

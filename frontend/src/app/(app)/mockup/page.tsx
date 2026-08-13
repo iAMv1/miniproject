@@ -626,7 +626,7 @@ function ChatView() {
 
       <div className="p-6 rounded-xl bg-[#141420] border border-[#1c1c2e]">
         <p className="text-xs text-[#857F75] text-center">
-          Chat uses Ollama locally — no data leaves your machine. Open the floating chat button (bottom-right) to try it.
+          Chat runs on MindPulse&apos;s AI assistant (Supabase edge function + Gemini). Open the floating chat button (bottom-right) to try it.
         </p>
       </div>
     </motion.div>

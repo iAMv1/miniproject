@@ -433,6 +433,11 @@ export default function TrackingPage() {
     }
   }, []);
 
+  // Retention: prune stress_history older than 90 days once per session.
+  useEffect(() => {
+    api.pruneStressHistory(90).catch(() => undefined);
+  }, [userId]);
+
   // Load 21-day trend data
   useEffect(() => {
     const fetchTrend = async () => {

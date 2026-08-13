@@ -115,6 +115,14 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response("method not allowed", { status: 405, headers: CORS });
   }
+  const t0 = performance.now();
+  const clientIp = (req.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+  const logReq = (status: number) =>
+    console.log(`infer ${req.method} status=${status} ${Math.round(performance.now() - t0)}ms ip=${clientIp}`);
+  if (rateLimited(clientIp)) {
+    logReq(429);
+    return json({ error: "rate limited — try again shortly" }, 429);
+  }
   try {
     const { features } = await req.json();
     if (!features || typeof features !== "object") {
@@ -140,6 +148,7 @@ Deno.serve(async (req) => {
       note: "binary deviation semantics; universal 3-class is not claimed",
     });
   } catch (e) {
+    logReq(500);
     return json({ error: String(e) }, 500);
   }
 });
