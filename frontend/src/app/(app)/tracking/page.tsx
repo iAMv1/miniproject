@@ -580,7 +580,7 @@ export default function TrackingPage() {
               : "Current window is within your baseline";
 
   const statusDetail = !hasCurrentWindow
-    ? "Move, type, or work normally for a short interval. No current conclusion is being shown."
+    ? "Keep this tab open and work here — live signals come from your activity in this tab. Background tabs pause telemetry."
     : signalState === "INSUFFICIENT_ACTIVITY"
       ? "A quiet window is not interpreted as calm, focused, or low strain."
       : signalState === "CALIBRATING"

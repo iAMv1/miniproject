@@ -19,8 +19,6 @@ const POLL_MS = 5000;
 // No placeholder features: the score is only produced from REAL feature
 // vectors sent by the collector (wsRef.send). Before the first real
 // vector arrives, the hook reports "collecting" and emits no data.
-let featuresRef: Record<string, number> | null = null;
-
 export function useStressStream(): UseStressStreamReturn {
   const [data, setData] = useState<StressResult | null>(null);
   const [history, setHistory] = useState<StressResult[]>([]);
@@ -29,12 +27,12 @@ export function useStressStream(): UseStressStreamReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const pollTimer = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(false);
+  const featuresRef = useRef<Record<string, number> | null>(null);
 
   const pollOnce = useCallback(async () => {
-    if (!featuresRef) {
-      if (isMounted.current && status !== "disconnected") {
-        setStatus("collecting" as ConnectionStatus);
-      }
+    const features = featuresRef.current;
+    if (!features) {
+      if (isMounted.current) setStatus("collecting" as ConnectionStatus);
       return;
     }
     const { data: session } = await supabase.auth.getSession();
@@ -43,7 +41,7 @@ export function useStressStream(): UseStressStreamReturn {
       return;
     }
     try {
-      const d = await inferStress(featuresRef);
+      const d = await inferStress(features);
       const probs = d.probabilities ?? { NEUTRAL: 0.33, MILD: 0.33, STRESSED: 0.34 };
       const result: StressResult = {
         score: Number(d.score ?? 0),
@@ -53,15 +51,18 @@ export function useStressStream(): UseStressStreamReturn {
         level: d.level ?? "UNKNOWN",
         deviation_level: d.deviation_level ?? "OK",
         stress_probability: Number(d.stress_probability ?? 0),
+        signal_state: "READY",
+        input_quality: d.input_quality ?? "GOOD",
+        activity_features_observed: Object.values(features).filter((v) => v > 0).length,
         confidence: Math.max(probs.NEUTRAL ?? 0, probs.MILD ?? 0, probs.STRESSED ?? 0),
         probabilities: probs,
         feature_contributions: {},
         insights: [],
         timestamp: Date.now() / 1000,
-        typing_speed_wpm: Number(featuresRef.typing_speed_wpm ?? 0),
-        error_rate: Number(featuresRef.error_rate ?? 0),
-        click_count: Number(featuresRef.click_count ?? 0),
-        mouse_speed_mean: Number(featuresRef.mouse_speed_mean ?? 0),
+        typing_speed_wpm: Number(features.typing_speed_wpm ?? 0),
+        error_rate: Number(features.error_rate ?? 0),
+        click_count: Number(features.click_count ?? 0),
+        mouse_speed_mean: Number(features.mouse_speed_mean ?? 0),
         alert_state: (d.deviation_level ?? "OK") === "ELEVATED" ? "EARLY_WARNING" : "NORMAL",
         intervention: null,
         trend: "steady",
@@ -131,7 +132,7 @@ export function useStressStream(): UseStressStreamReturn {
                            "pause_duration_mean"]) {
             if (typeof f[k] === "number") f[k] = f[k] * 1000;
           }
-          featuresRef = f;
+          featuresRef.current = f;
           pollOnce();
         }
       } catch {
