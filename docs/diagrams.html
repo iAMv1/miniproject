@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindPulse — interactive system diagram</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; color: #F2EFE9; font-family: ui-monospace, "Cascadia Code", Menlo, monospace; overflow: hidden; }
+  #wrap { display: flex; height: 100vh; }
+  #stage { flex: 1; position: relative; }
+  svg { width: 100%; height: 100%; display: block; }
+  #panel { width: 420px; border-left: 1px solid #1c1c2e; background: #0d0d14; display: flex; flex-direction: column; }
+  #panel h2 { padding: 14px 16px; font-size: 13px; font-weight: 600; border-bottom: 1px solid #1c1c2e; color: #F2EFE9; }
+  #panel .hint { padding: 8px 16px; font-size: 11px; color: #857F75; border-bottom: 1px solid #1c1c2e; }
+  #panel pre { flex: 1; overflow: auto; padding: 14px 16px; font-size: 11.5px; line-height: 1.55; color: #c9c2b4; white-space: pre-wrap; word-break: break-word; }
+  #copy { margin: 12px 16px; padding: 8px 0; border-radius: 8px; border: 1px solid #5b4fc44d; background: #141420; color: #c4bdf0; font: inherit; font-size: 11px; cursor: pointer; }
+  #copy:hover { background: #1a1a2e; }
+  .node rect { fill: #141420; stroke: #2a2a3e; stroke-width: 1.5; rx: 8; }
+  .node:hover rect { stroke: #5b4fc4; }
+  .node.active rect { stroke: #8b7cf6; stroke-width: 2.5; filter: drop-shadow(0 0 8px #5b4fc466); }
+  .node text { fill: #F2EFE9; font-size: 12px; font-weight: 600; }
+  .node .sub { fill: #857F75; font-size: 10px; font-weight: 400; }
+  .edge { stroke: #2e2e44; stroke-width: 1.5; }
+  .edge.active { stroke: #5b4fc4; }
+  .elabel { fill: #6b6559; font-size: 9.5px; }
+  .dot { r: 4; fill: #8b7cf6; cursor: pointer; }
+  .dot:hover { fill: #ffd166; }
+  #title { position: absolute; top: 14px; left: 16px; font-size: 14px; font-weight: 700; color: #F2EFE9; z-index: 5; }
+  #legend { position: absolute; bottom: 14px; left: 16px; font-size: 10px; color: #857F75; z-index: 5; background: #0d0d14cc; padding: 8px 12px; border-radius: 8px; border: 1px solid #1c1c2e; }
+  #legend b { color: #8b7cf6; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 10px; border: 1px solid #33334a; margin: 2px 2px 0 0; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <div id="title">MindPulse — system diagram <span class="pill">click node</span><span class="pill">click moving dot</span></div>
+    <svg id="svg" viewBox="0 0 1500 860"></svg>
+    <div id="legend">Moving dots = data in flight. <b>Click a dot</b> to inspect its payload, <b>click a node</b> for its role + real code location.</div>
+  </div>
+  <div id="panel">
+    <h2 id="ph2">Click something</h2>
+    <div class="hint">Data snippets below are the real shapes this system passes around.</div>
+    <pre id="pbody"></pre>
+    <button id="copy">copy snippet</button>
+  </div>
+</div>
+<script>
+const N = [
+  { id:"col", x:40, y:70, w:230, h:64, label:"use-feature-collector", sub:"keydown · mouse · click · scroll · visibilitychange/blur/focus", file:"frontend/src/hooks/use-feature-collector.ts", data:{
+    role:"Browser-side collector. Accumulates raw timing events; flushes a window every 30s when there is real activity (typing, clicks, mouse, or a tab switch). Silence is never sent.",
+    location:"use-feature-collector.ts · flush()",
+    events:[ "keydown/keyup → hold + flight times (ms)", "mousemove (50ms throttle) → speeds px/s", "click → click_count + rage pairs (<400ms)", "scroll → velocity std px/s", "visibilitychange/blur/focus → tab_switches, away-gaps" ]
+  }},
+  { id:"feat", x:40, y:230, w:230, h:64, label:"lib/features.ts", sub:"23-feature vector · ms units · shared with desktop agent", file:"frontend/src/lib/features.ts", data:{
+    role:"Pure function: accumulator → model-ready feature vector. Same math runs in the browser (TS) and the desktop agent (Python) — parity-tested against the same fixture.",
+    location:"lib/features.ts · computeFeatures()",
+    sample: JSON.stringify({ hold_time_mean:84, hold_time_std:23.02, hold_time_median:80, flight_time_mean:1333.33, typing_speed_wpm:2, error_rate:0, pause_frequency:1, pause_duration_mean:3750, burst_length_mean:2, rhythm_entropy:0.9183, mouse_speed_mean:83.33, direction_change_rate:0.03, click_count:3, rage_click_count:1, scroll_velocity_std:70.71, tab_switch_freq:3, switch_entropy:0, session_fragmentation:0.33, session_duration_min:0.5 }, null, 1)
+  }},
+  { id:"stream", x:40, y:390, w:230, h:64, label:"use-stress-stream", sub:"poll 5s · dirty-flag dedup · signal_state=READY", file:"frontend/src/hooks/use-stress-stream.ts", data:{
+    role:"Polls the infer edge fn every 5s, but only fires when the feature vector actually changed (dirty flag — no duplicate inserts). Persists every result + wires focus/baseline writers.",
+    location:"use-stress-stream.ts · pollOnce()",
+    writes:[ "stress_history → score/level/deviation/probability", "focus_snapshots → 100−score, switches, deep_work_minutes", "user_baselines → mean/std/threshold upsert (powers /calibration)" ]
+  }},
+  { id:"infer", x:560, y:230, w:220, h:64, label:"edge fn · infer", sub:"JS tree-walker XGBoost · rate limit 60/min/IP · anon-ok", file:"supabase/functions/infer/index.ts", data:{
+    role:"The model. Loads xgb_model.json from storage, walks the tree in JS (parity 4.3e-08 vs Python), scores the 23 features into 3-class probabilities + binary deviation semantics.",
+    location:"infer/index.ts · scoreOne()",
+    request: JSON.stringify({ features:{ typing_speed_wpm:45, mouse_speed_mean:210, click_count:12, hour_of_day:14.5 } }, null, 1),
+    response: JSON.stringify({ score:58.4, level:"MILD", deviation_level:"ELEVATED", stress_probability:0.72, probabilities:{ NEUTRAL:0.2, MILD:0.55, STRESSED:0.25 } }, null, 1),
+    note:"Rate limit: in-memory sliding window per client IP (60 req/min). Observability: request log line per call (platform logs)."
+  }},
+  { id:"chat", x:560, y:70, w:220, h:64, label:"edge fn · chat", sub:"JWT signature + role=authenticated · Gemini proxy", file:"supabase/functions/chat/index.ts", data:{
+    role:"Supportive assistant proxy. verify_jwt alone passes the anon key (it's a valid signed JWT) — so it verifies the HS256 signature with SUPABASE_JWT_SECRET and requires role=authenticated in-function. Anon → 401.",
+    location:"chat/index.ts · isAuthenticatedUser()",
+    request: JSON.stringify({ message:"had a rough morning", history:[{role:"user",content:"hi"},{role:"assistant",content:"hey!"}] }, null, 1)
+  }},
+  { id:"gemini", x:310, y:70, w:220, h:64, label:"Gemini API", sub:"gemini-flash-latest · GEMINI_API_KEY secret", file:"supabase dashboard → secrets", data:{
+    role:"External LLM behind the chat edge fn. The key lives as an edge-function secret — never in the client bundle.",
+    call:"POST generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
+  }},
+  { id:"agent", x:560, y:650, w:220, h:64, label:"Desktop agent (Python)", sub:"pynput global hooks · 30s windows · JWT auto-refresh", file:"backend/desktop_agent/agent.py", data:{
+    role:"Full-OS coverage: global keyboard/mouse/app-switch hooks (privacy-safe: timings + category + app-name sha256 hash). Same feature math as the browser, parity-tested. Writes via REST with the user's JWT (auto-rotated refresh token).",
+    location:"desktop_agent/agent.py · WindowFeatures + main()",
+    config:"config.json (gitignored): supabase_url, anon_key, refresh_token",
+    reads:"pair.py → python agent.py (Ctrl+C stops)"
+  }},
+  { id:"t1", x:1000, y:60, w:200, h:54, label:"stress_history", sub:"RLS own · retention 90d prune", file:"supabase_schema_v2.sql", data:{
+    role:"The core store: every scored window lands here. Powers /history, /tracking trend, stats, forecast, calibration.",
+    row: JSON.stringify({ user_id:"uuid", score:58.4, level:"MILD", deviation_level:"ELEVATED", stress_probability:0.72, typing_speed_wpm:45, error_rate:0.03, click_count:12, created_at:"2026-08-15T09:12:00Z" }, null, 1),
+    growth:"~1 row per 30s window per active collector. Pruned >90d (web once/session + agent at startup)."
+  }},
+  { id:"t2", x:1000, y:180, w:200, h:54, label:"focus_snapshots", sub:"focus_score · switches · deep_work_minutes", file:"supabase_schema_v2.sql", data:{
+    role:"Powers /focus. Written by both collectors every window: focus_score = 100 − stress score, context_switches = measured tab/app switches, deep_work_minutes = session time when score < 35.",
+    row: JSON.stringify({ focus_score:41.6, context_switches:3, tab_hopping:3, deep_work_minutes:0.5 }, null, 1)
+  }},
+  { id:"t3", x:1000, y:300, w:200, h:54, label:"user_baselines", sub:"mean/std jsonb · threshold · seeded per window", file:"supabase_schema_v2.sql", data:{
+    role:"Personal baseline for deviation semantics. Was dead (nothing wrote it) — now upserted after every successful window from the last 20 scores. /calibration flips is_calibrated at ≥5 windows.",
+    row: JSON.stringify({ mean:"[42.3]", std:"[9.1]", threshold:46.9, updated_at:"2026-08-15T09:12:01Z" }, null, 1)
+  }},
+  { id:"t4", x:1000, y:420, w:200, h:54, label:"wellness_checkins", sub:"upsert on (user_id, check_date)", file:"supabase_schema_v2.sql", data:{
+    role:"Daily energy/sleep check-in. Journal derives real pattern insights client-side (trend, sleep correlation, streaks) — the wellness_insights table has no generator yet (open item)."
+  }},
+  { id:"t5", x:1000, y:540, w:200, h:54, label:"chat_sessions + messages", sub:"RLS user-scoped (was using(true) — fixed)", file:"supabase_schema_v2.sql", data:{
+    role:"Chat history. chat_messages carries user_id and policy auth.uid()=user_id after the cross-user RLS hole was closed. Edge fn writes both sides of every exchange."
+  }},
+  { id:"t6", x:1000, y:660, w:200, h:54, label:"telemetry_events", sub:"raw events · desktop agent only", file:"supabase_schema_v2.sql", data:{
+    role:"Raw privacy-safe event stream (key timings, click coords, app-switch hashes) for future training data. Only the desktop agent writes it today."
+  }},
+  { id:"pages", x:1280, y:330, w:180, h:230, label:"/tracking · /focus · /calibration", sub:"/wellness · /chat · /history · /insights", file:"frontend/src/app/(app)/", data:{
+    role:"All pages read via RLS-scoped queries. /tracking is the only live-window UI (browser windows); desktop windows appear in history/stats/calibration.",
+    pages:[ "/tracking → live gauge, tiles, alerts, trend", "/focus → flow score, deep work, switches", "/calibration → baseline maturity", "/wellness → check-in + derived journal", "/chat → Gemini assistant (JWT-gated)", "/history → 21-day trend + stats" ]
+  }},
+  { id:"auth", x:1000, y:770, w:200, h:54, label:"Auth (Google/email)", sub:"every write passes through RLS", file:"supabase auth", data:{
+    role:"Identity + JWT. The desktop agent auto-refreshes its session via the refresh-token grant; the browser attaches the session token to every invoke automatically."
+  }}
+];
+
+const E = [
+  { from:"col", to:"feat", label:"raw timings (ms)", payload:{ kind:"accumulator", sample:JSON.stringify({ holdTimes:[80,60,90,70,120], flightTimes:[100,150,3750], clickTimestamps:[200,300,5000], tabSwitches:3, hiddenMs:10000 }, null, 1) } },
+  { from:"feat", to:"stream", label:"23 features", payload:{ kind:"feature vector", sample:JSON.stringify({ typing_speed_wpm:2, mouse_speed_mean:83.33, tab_switch_freq:3, session_fragmentation:0.33 }, null, 1) } },
+  { from:"stream", to:"infer", label:"POST /functions/v1/infer", payload:{ kind:"HTTP request", body:"{ features: { typing_speed_wpm: 2, mouse_speed_mean: 83.33, ... } }", auth:"session JWT (or anon — public model, rate-limited)" } },
+  { from:"infer", to:"t1", label:"insert", payload:{ kind:"stress_history row", sample:JSON.stringify({ score:58.4, level:"MILD", deviation_level:"ELEVATED", stress_probability:0.72, typing_speed_wpm:2, error_rate:0, click_count:3 }, null, 1) } },
+  { from:"infer", to:"t2", label:"insert", payload:{ kind:"focus_snapshots row", sample:JSON.stringify({ focus_score:41.6, context_switches:3, tab_hopping:3, deep_work_minutes:0.5 }, null, 1) } },
+  { from:"infer", to:"t3", label:"upsert baseline", payload:{ kind:"user_baselines row", sample:JSON.stringify({ mean:"[42.3]", std:"[9.1]", threshold:46.9 }, null, 1) } },
+  { from:"chat", to:"gemini", label:"generateContent", payload:{ kind:"LLM request", body:"{ contents: [system prompt, history (last 8), user message], generationConfig: { maxOutputTokens: 600 } }" } },
+  { from:"gemini", to:"chat", label:"reply", payload:{ kind:"LLM response", body:"{ candidates[0].content.parts[0].text } → streamed back as { reply }" } },
+  { from:"agent", to:"infer", label:"window features", payload:{ kind:"desktop window", sample:JSON.stringify({ hold_time_mean:84, mouse_speed_mean:83.33, app_switches:3, idle_share:0.33 }, null, 1) } },
+  { from:"agent", to:"t6", label:"raw events batch", payload:{ kind:"telemetry_events rows", sample:JSON.stringify([{ event_type:"key", ts_epoch:1755.2, kind:"alpha", down_ms:100, up_ms:180 },{ event_type:"app_switch", ts_epoch:1758.9, key_hash:"a3f9…" }], null, 1) } },
+  { from:"t1", to:"pages", label:"select (RLS)", payload:{ kind:"history query", body:"select * from stress_history where user_id = <me> order by created_at desc limit 500" } },
+  { from:"t3", to:"pages", label:"baseline state", payload:{ kind:"calibration status", body:"{ is_calibrated: true, threshold: 46.9, days_collected: 1, completion_pct: 100 }" } },
+  { from:"chat", to:"t5", label:"insert both roles", payload:{ kind:"chat_messages rows", sample:JSON.stringify([{ user_id:"<me>", session_id:"uuid", role:"user", content:"had a rough morning" },{ user_id:"<me>", session_id:"uuid", role:"assistant", content:"that sounds heavy — 2 min box breathing?" }], null, 1) } },
+  { from:"agent", to:"t2", label:"insert", payload:{ kind:"focus_snapshots row (desktop)", sample:JSON.stringify({ focus_score:41.6, context_switches:3, tab_hopping:3, deep_work_minutes:0.5 }, null, 1) } }
+];
+
+const svg = document.getElementById("svg");
+const NS = "http://www.w3.org/2000/svg";
+const panelTitle = document.getElementById("ph2");
+const panelBody = document.getElementById("pbody");
+const copyBtn = document.getElementById("copy");
+let lastShown = "";
+
+function nodeCenter(n){ return { x: n.x + n.w/2, y: n.y + n.h/2 }; }
+function fmt(obj){ return typeof obj === "string" ? obj : JSON.stringify(obj, null, 2); }
+
+function show(title, obj, location){
+  lastShown = fmt(obj);
+  panelTitle.textContent = title;
+  panelBody.textContent = lastShown + (location ? "\n\n── location ──\n" + location : "");
+}
+
+const nodeEls = {};
+for (const n of N){
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("class", "node");
+  g.setAttribute("data-id", n.id);
+  const r = document.createElementNS(NS, "rect");
+  r.setAttribute("x", n.x); r.setAttribute("y", n.y); r.setAttribute("width", n.w); r.setAttribute("height", n.h);
+  const t = document.createElementNS(NS, "text");
+  t.setAttribute("x", n.x + 12); t.setAttribute("y", n.y + 24);
+  t.textContent = n.label;
+  const s = document.createElementNS(NS, "text");
+  s.setAttribute("class", "sub");
+  s.setAttribute("x", n.x + 12); s.setAttribute("y", n.y + 42);
+  s.textContent = n.sub;
+  g.appendChild(r); g.appendChild(t); g.appendChild(s);
+  g.addEventListener("click", () => {
+    const parts = [ n.data.role, "\n", ...(n.data.sample ? ["sample: ", n.data.sample] : []), ...(n.data.row ? ["row: ", n.data.row] : []), ...(n.data.request ? ["request: ", n.data.request] : []), ...(n.data.response ? ["response: ", n.data.response] : []), ...(n.data.writes ? ["writes:", ...n.data.writes] : []), ...(n.data.events ? ["events:", ...n.data.events] : []), ...(n.data.pages ? ["pages:", ...n.data.pages] : []) ];
+    show(n.label + "  ·  " + n.id, parts.filter(x => x !== undefined && x !== "").join("\n"), n.file);
+    document.querySelectorAll(".node").forEach(x => x.classList.remove("active"));
+    g.classList.add("active");
+  });
+  svg.appendChild(g);
+  nodeEls[n.id] = n;
+}
+
+const edges = [];
+for (const e of E){
+  const a = nodeCenter(nodeEls[e.from]);
+  const b = nodeCenter(nodeEls[e.to]);
+  const line = document.createElementNS(NS, "line");
+  line.setAttribute("class", "edge");
+  line.setAttribute("x1", a.x); line.setAttribute("y1", a.y); line.setAttribute("x2", b.x); line.setAttribute("y2", b.y);
+  svg.appendChild(line);
+  if (e.label){
+    const l = document.createElementNS(NS, "text");
+    l.setAttribute("class", "elabel");
+    l.setAttribute("x", (a.x+b.x)/2 + 6); l.setAttribute("y", (a.y+b.y)/2 - 6);
+    l.textContent = e.label;
+    svg.appendChild(l);
+  }
+  edges.push({ x1:a.x, y1:a.y, x2:b.x, y2:b.y, e });
+}
+
+const dots = [];
+for (const ed of edges){
+  const count = 3 + (ed.e.from === "agent" ? 1 : 0);
+  for (let i = 0; i < count; i++){
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("class", "dot");
+    c.setAttribute("r", 4);
+    svg.appendChild(c);
+    const phase = i / count;
+    const speed = 0.0006 + ((ed.e.from.charCodeAt(0) + i) % 3) * 0.0002;
+    c.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      show("dot payload · " + (ed.e.label || "data"), { carried_by: ed.e.from + " → " + ed.e.to, ...ed.e.payload });
+    });
+    dots.push({ el: c, ed, phase, speed });
+  }
+}
+
+const start = performance.now();
+function frame(now){
+  const t = (now - start) / 1000;
+  for (const d of dots){
+    const p = (t * d.speed + d.phase) % 1;
+    d.el.setAttribute("cx", d.ed.x1 + (d.ed.x2 - d.ed.x1) * p);
+    d.el.setAttribute("cy", d.ed.y1 + (d.ed.y2 - d.ed.y1) * p);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+copyBtn.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(lastShown); copyBtn.textContent = "copied ✓"; setTimeout(() => copyBtn.textContent = "copy snippet", 1200); }
+  catch { copyBtn.textContent = "copy failed"; }
+});
+</script>
+</body>
+</html>
